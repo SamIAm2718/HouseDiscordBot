@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
@@ -12,13 +13,31 @@ import (
 
 // Variables used for command line parameters
 var (
-	Token string
+	Token     string
+	TokenPath string
 )
 
 func init() {
 
 	flag.StringVar(&Token, "t", "", "Bot Token")
+	flag.StringVar(&TokenPath, "p", "", "Path to Bot Token")
 	flag.Parse()
+
+	if Token == "" {
+
+		if TokenPath == "" {
+			fmt.Println("Please specify a bot token using -t or a path to a bot token using -p.")
+			os.Exit(1)
+		}
+
+		rawToken, err := ioutil.ReadFile(TokenPath)
+		if err != nil {
+			fmt.Println("Error reading token file:", err)
+			os.Exit(1)
+		}
+
+		Token = string(rawToken)
+	}
 }
 
 func main() {
