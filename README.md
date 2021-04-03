@@ -1,9 +1,10 @@
 # HouseDiscordBot
 
-To run the bot either use the command
+To run the bot either use the commands
 
 ```
 go run HouseDiscordBot.go -t <Bot Token>
+go run HouseDiscordBot.go -p <Path to Token>
 ```
 
 or build the project using Docker with the command
