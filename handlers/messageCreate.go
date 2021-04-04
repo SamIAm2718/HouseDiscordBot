@@ -37,11 +37,11 @@ func commandAdd(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
 		case "channel":
 
 		}
+	}
 
-		_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is HouseBot add channel <Twitch Channel>")
-		if err != nil {
-			fmt.Println("Error sending message,", err)
-		}
+	_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is HouseBot add channel <Twitch Channel>")
+	if err != nil {
+		fmt.Println("Error sending message,", err)
 	}
 }
 
@@ -51,10 +51,10 @@ func commandRemove(s *discordgo.Session, m *discordgo.MessageCreate, c []string)
 		case "channel":
 
 		}
+	}
 
-		_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is HouseBot remove channel <Twitch Channel>")
-		if err != nil {
-			fmt.Println("Error sending message,", err)
-		}
+	_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is HouseBot remove channel <Twitch Channel>")
+	if err != nil {
+		fmt.Println("Error sending message,", err)
 	}
 }

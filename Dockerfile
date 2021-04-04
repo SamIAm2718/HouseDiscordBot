@@ -5,4 +5,4 @@ COPY . .
 
 RUN go install -v ./HouseDiscordBot.go
 
-CMD ["HouseDiscordBot", "-e", "BOT_TOKEN"]
+CMD ["HouseDiscordBot"]

@@ -2,17 +2,33 @@ package twitch
 
 import (
 	"fmt"
-	"github.com/SamIAm2718/HouseDiscordBot/constants"
-	"github.com/nicklaw5/helix"
 	"os"
 	"time"
+
+	"github.com/SamIAm2718/HouseDiscordBot/constants"
+	"github.com/bwmarrin/discordgo"
+	"github.com/nicklaw5/helix"
 )
 
+var (
+	clientId     string
+	clientSecret string
+)
 
-func CheckIfHouseSlayerIsOnline(clientId string, clientSecret string) {
+type TwitchOracle struct {
+	TwitchChannel  string
+	DiscordChannel string
+}
+
+func init() {
+	clientId = os.Getenv("TWITCH_CLIENT_ID")
+	clientSecret = os.Getenv("TWITCH_CLIENT_SECRET")
+}
+
+func MonitorChannel(t TwitchOracle, s *discordgo.Session) {
 	client, err := helix.NewClient(&helix.Options{
-		ClientID: clientId,
-		ClientSecret:  clientSecret,
+		ClientID:     clientId,
+		ClientSecret: clientSecret,
 		RedirectURI:  "http://localhost",
 	})
 	if err != nil {
@@ -30,7 +46,7 @@ func CheckIfHouseSlayerIsOnline(clientId string, clientSecret string) {
 	var (
 		currentState bool
 	)
-    // TODO: refresh access token if expired
+	// TODO: refresh access token if expired
 	for {
 		resp, err := client.GetStreams(&helix.StreamsParams{
 			UserLogins: []string{"HouseSlayer"},
@@ -41,14 +57,14 @@ func CheckIfHouseSlayerIsOnline(clientId string, clientSecret string) {
 		if len(resp.Data.Streams) == 0 {
 			fmt.Println("Robert offline")
 			// current offline
-			if currentState == true {
+			if currentState {
 				currentState = false
 				// send message to discord
 			}
 		} else {
 			// currently online
 			fmt.Println("Robert online")
-			if currentState == false {
+			if !currentState {
 				currentState = false
 				// send message to discord
 			}
