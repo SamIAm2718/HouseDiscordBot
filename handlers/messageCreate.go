@@ -41,6 +41,7 @@ func commandAdd(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
 				DiscordChannel: m.ChannelID,
 			}
 			twitch.Oracles = append(twitch.Oracles, oracle)
+			fmt.Printf("Registering twitch oracle for, %+v\n", oracle)
 			go twitch.MonitorChannel(oracle, s)
 			return
 		}
