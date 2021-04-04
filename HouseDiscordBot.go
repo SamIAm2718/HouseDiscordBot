@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
@@ -30,14 +31,34 @@ func init() {
 			os.Exit(1)
 		}
 
-		rawToken, err := ioutil.ReadFile(TokenPath)
+		Token = getTokenFromPath(TokenPath)
+	}
+}
+
+func getTokenFromPath(tp string) string {
+	var (
+		rawToken []byte
+		err      error
+	)
+
+	for {
+		rawToken, err = ioutil.ReadFile(tp)
 		if err != nil {
-			fmt.Println("Error reading token file:", err)
-			os.Exit(1)
+			fmt.Println("Error reading token file,", err)
+			fmt.Println("Attempting to read again in 5 seconds.")
+			time.Sleep(5 * time.Second)
+			continue
+		} else if !(len(rawToken) > 0) {
+			fmt.Println("Token file is empty")
+			fmt.Println("Attempting to read again in 5 seconds.")
+			time.Sleep(5 * time.Second)
+			continue
 		}
 
-		Token = string(rawToken)
+		break
 	}
+
+	return string(rawToken)
 }
 
 func main() {
