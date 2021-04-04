@@ -13,6 +13,7 @@ import (
 var (
 	clientId     string
 	clientSecret string
+	Oracles      []TwitchOracle
 )
 
 type TwitchOracle struct {
@@ -43,30 +44,27 @@ func MonitorChannel(t TwitchOracle, s *discordgo.Session) {
 	}
 	client.SetAppAccessToken(resp.Data.AccessToken)
 
-	var (
-		currentState bool
-	)
+	var isOnline bool
+
 	// TODO: refresh access token if expired
 	for {
 		resp, err := client.GetStreams(&helix.StreamsParams{
-			UserLogins: []string{"HouseSlayer"},
+			UserLogins: []string{t.TwitchChannel},
 		})
 		if err != nil {
 			fmt.Println("Failed to query twitch", err)
 		}
+
 		if len(resp.Data.Streams) == 0 {
-			fmt.Println("Robert offline")
 			// current offline
-			if currentState {
-				currentState = false
-				// send message to discord
+			if isOnline {
+				isOnline = false
 			}
 		} else {
 			// currently online
-			fmt.Println("Robert online")
-			if !currentState {
-				currentState = false
-				// send message to discord
+			if !isOnline {
+				isOnline = true
+				s.ChannelMessageSend(t.DiscordChannel, t.TwitchChannel+" is online! Watch at http://twitch.tv/"+t.TwitchChannel)
 			}
 		}
 		time.Sleep(time.Second)

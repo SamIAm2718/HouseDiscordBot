@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/SamIAm2718/HouseDiscordBot/twitch"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -35,7 +36,13 @@ func commandAdd(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
 	if len(c) == 2 {
 		switch c[0] {
 		case "channel":
-
+			oracle := twitch.TwitchOracle{
+				TwitchChannel:  c[1],
+				DiscordChannel: m.ChannelID,
+			}
+			twitch.Oracles = append(twitch.Oracles, oracle)
+			go twitch.MonitorChannel(oracle, s)
+			return
 		}
 	}
 

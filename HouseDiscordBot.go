@@ -18,7 +18,6 @@ import (
 var (
 	token     string
 	tokenPath string
-	oracles   []twitch.TwitchOracle
 )
 
 func init() {
@@ -47,7 +46,7 @@ func init() {
 	}
 
 	// Read twitch Oracle Data from JSONs
-	readOraclesFromDisk(&oracles)
+	readOraclesFromDisk(&twitch.Oracles)
 }
 
 func main() {
@@ -74,7 +73,7 @@ func main() {
 
 	// Register the twitch oracles
 
-	for _, oracle := range oracles {
+	for _, oracle := range twitch.Oracles {
 		go twitch.MonitorChannel(oracle, dg)
 		fmt.Printf("Registering twitch oracle for, %+v\n", oracle)
 	}
@@ -91,7 +90,7 @@ func main() {
 
 	// Save twitch oracles for next session
 	fmt.Println("Writing twitch oracles to disk.")
-	writeOraclesToDisk(oracles)
+	writeOraclesToDisk(twitch.Oracles)
 }
 
 func readOraclesFromDisk(o *[]twitch.TwitchOracle) {
