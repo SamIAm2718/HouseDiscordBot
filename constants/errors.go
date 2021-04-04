@@ -7,4 +7,5 @@ const (
 	ERR_FILEREAD  = iota
 	ERR_CREATEBOT = iota
 	ERR_BOTOPEN   = iota
+	ERR_TWITCHFAILURE   = iota
 )
