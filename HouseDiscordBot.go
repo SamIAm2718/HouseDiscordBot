@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/SamIAm2718/HouseDiscordBot/twitch"
 	"io/ioutil"
 	"os"
 	"os/signal"
@@ -17,16 +18,21 @@ var (
 	token     string
 	tokenPath string
 	envName   string
+	twitchClientId string
+	twitchClientSecret string
 )
 
 func init() {
-
 	flag.StringVar(&token, "t", "", "Bot Token")
 	flag.StringVar(&envName, "e", "", "Environment variable containing Bot Token")
 	flag.StringVar(&tokenPath, "p", "", "Path to Bot Token")
+	flag.StringVar(&twitchClientId, "etc", "", "Environment variable containing Twitch Client Id")
+	flag.StringVar(&twitchClientSecret, "ets", "", "Environment variable containing Twitch Client Secret")
 	flag.Parse()
 
-	// We process the most important flag to recieve a token
+	twitchClientId = os.Getenv("TWITCH_CLIENT_ID")
+	twitchClientSecret = os.Getenv("TWITCH_CLIENT_SECRET")
+	// We process the most important flag to receive a token
 	// The flags listed in order of importance are
 	// t > e > p
 	// If no flags are set the Bot exits with value ERR_NOFLAGS
@@ -63,6 +69,8 @@ func main() {
 		fmt.Println("error opening connection,", err)
 		os.Exit(constants.ERR_BOTOPEN)
 	}
+
+	go twitch.CheckIfHouseSlayerIsOnline(twitchClientId, twitchClientSecret)
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
