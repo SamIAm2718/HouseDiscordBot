@@ -15,3 +15,11 @@ docker run -e BOT_TOKEN=<Bot Token> --name <Container Name> SamIAm2718/house-dis
 ```
 
 Uses the repository https://github.com/bwmarrin/discordgo 
+
+
+To run as a kubernetes pod 
+
+```
+1. Create secret with k create secret generic housebot --from-literal='bottoken=<bot token>'
+2. kubectl apply -f 
+```
