@@ -3,14 +3,15 @@
 To run the bot either use the commands
 
 ```
-go run HouseDiscordBot.go -t <Bot Token>
-go run HouseDiscordBot.go -p <Path to Token>
+go run HouseDiscordBot.go -t <Bot token>
+go run HouseDiscordBot.go -e <Env variable containing token>
+go run HouseDiscordBot.go -p <Path to token>
 ```
 
-or build the project using Docker with the command
+or run the project on Docker using the command
 
 ```
-docker build -t house-discord-bot . --build-arg token=<Bot Token>
+docker run -e BOT_TOKEN=<Bot Token> --name <Container Name> SamIAm2718/house-discord-bot
 ```
 
 Uses the repository https://github.com/bwmarrin/discordgo 
