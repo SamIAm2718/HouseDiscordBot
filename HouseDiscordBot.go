@@ -49,7 +49,12 @@ func getTokenFromPath(tp string) string {
 			time.Sleep(5 * time.Second)
 			continue
 		} else if !(len(rawToken) > 0) {
-			fmt.Println("Token file is empty")
+			fmt.Println("Token file is empty.")
+			fmt.Println("Attempting to read again in 5 seconds.")
+			time.Sleep(5 * time.Second)
+			continue
+		} else if !testToken(string(rawToken)) {
+			fmt.Println("Token in file may be invalid.")
 			fmt.Println("Attempting to read again in 5 seconds.")
 			time.Sleep(5 * time.Second)
 			continue
@@ -59,6 +64,26 @@ func getTokenFromPath(tp string) string {
 	}
 
 	return string(rawToken)
+}
+
+func testToken(t string) bool {
+	dg, err := discordgo.New("Bot " + t)
+	if err != nil {
+		fmt.Println("error creating Discord session,", err)
+		return false
+	}
+
+	err = dg.Open()
+	if err != nil {
+		fmt.Println("error opening connection,", err)
+		return false
+	}
+
+	time.Sleep(time.Second)
+
+	dg.Close()
+
+	return true
 }
 
 func main() {
