@@ -16,22 +16,27 @@ import (
 var (
 	Token     string
 	TokenPath string
+	envName   string
 )
 
 func init() {
 
 	flag.StringVar(&Token, "t", "", "Bot Token")
 	flag.StringVar(&TokenPath, "p", "", "Path to Bot Token")
+	flag.StringVar(&envName, "e", "", "Environment variable containing Bot Token")
 	flag.Parse()
 
-	if Token == "" {
+	if len(Token) > 0 {
 
-		if TokenPath == "" {
-			fmt.Println("Please specify a bot token using -t or a path to a bot token using -p.")
-			os.Exit(1)
-		}
-
+	} else if len(envName) > 0 {
+		Token = os.Getenv(envName)
+	} else if len(TokenPath) > 0 {
 		Token = getTokenFromPath(TokenPath)
+	} else {
+		fmt.Println("Please specify a bot token using -t,")
+		fmt.Println("an environment variable using -e,")
+		fmt.Println("or a path to a bot token using -p.")
+		os.Exit(1)
 	}
 }
 
