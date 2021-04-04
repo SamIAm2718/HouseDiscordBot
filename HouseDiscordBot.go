@@ -7,103 +7,61 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
+	"github.com/SamIAm2718/HouseDiscordBot/constants"
 	"github.com/bwmarrin/discordgo"
 )
 
 // Variables used for command line parameters
 var (
-	Token     string
-	TokenPath string
+	token     string
+	tokenPath string
 	envName   string
 )
 
 func init() {
 
-	flag.StringVar(&Token, "t", "", "Bot Token")
-	flag.StringVar(&TokenPath, "p", "", "Path to Bot Token")
+	flag.StringVar(&token, "t", "", "Bot Token")
 	flag.StringVar(&envName, "e", "", "Environment variable containing Bot Token")
+	flag.StringVar(&tokenPath, "p", "", "Path to Bot Token")
 	flag.Parse()
 
-	if len(Token) > 0 {
+	// We process the most important flag to recieve a token
+	// The flags listed in order of importance are
+	// t > e > p
+	// If no flags are set the Bot exits with value ERR_NOFLAGS
+	if len(token) > 0 {
 
 	} else if len(envName) > 0 {
-		Token = os.Getenv(envName)
-	} else if len(TokenPath) > 0 {
-		Token = getTokenFromPath(TokenPath)
+		token = os.Getenv(envName)
+	} else if len(tokenPath) > 0 {
+		rawToken, err := ioutil.ReadFile(tokenPath)
+		if err != nil {
+			fmt.Println("Error reading token file,", err)
+			os.Exit(constants.ERR_FILEREAD)
+		}
+		token = string(rawToken)
 	} else {
 		fmt.Println("Please specify a bot token using -t,")
 		fmt.Println("an environment variable using -e,")
 		fmt.Println("or a path to a bot token using -p.")
-		os.Exit(1)
+		os.Exit(constants.ERR_NOFLAGS)
 	}
-}
-
-func getTokenFromPath(tp string) string {
-	var (
-		rawToken []byte
-		err      error
-	)
-
-	for {
-		rawToken, err = ioutil.ReadFile(tp)
-		if err != nil {
-			fmt.Println("Error reading token file,", err)
-			fmt.Println("Attempting to read again in 5 seconds.")
-			time.Sleep(5 * time.Second)
-			continue
-		} else if !(len(rawToken) > 0) {
-			fmt.Println("Token file is empty.")
-			fmt.Println("Attempting to read again in 5 seconds.")
-			time.Sleep(5 * time.Second)
-			continue
-		} else if !testToken(string(rawToken)) {
-			fmt.Println("Token in file may be invalid.")
-			fmt.Println("Attempting to read again in 5 seconds.")
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
-		break
-	}
-
-	return string(rawToken)
-}
-
-func testToken(t string) bool {
-	dg, err := discordgo.New("Bot " + t)
-	if err != nil {
-		fmt.Println("error creating Discord session,", err)
-		return false
-	}
-
-	err = dg.Open()
-	if err != nil {
-		fmt.Println("error opening connection,", err)
-		return false
-	}
-
-	time.Sleep(time.Second)
-
-	dg.Close()
-
-	return true
 }
 
 func main() {
 	// Create a new Discord session using the provided bot token.
-	dg, err := discordgo.New("Bot " + Token)
+	dg, err := discordgo.New("Bot " + token)
 	if err != nil {
 		fmt.Println("error creating Discord session,", err)
-		return
+		os.Exit(constants.ERR_CREATEBOT)
 	}
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
 	if err != nil {
 		fmt.Println("error opening connection,", err)
-		return
+		os.Exit(constants.ERR_BOTOPEN)
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
