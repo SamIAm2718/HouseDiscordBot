@@ -21,5 +21,5 @@ To run as a kubernetes pod
 
 ```
 1. Create secret with k create secret generic housebot --from-literal='bottoken=<bot token>'
-2. kubectl apply -f 
+2. kubectl apply -f k3sHouseBot.yaml
 ```
