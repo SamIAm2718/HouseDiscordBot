@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
+	"github.com/SamIAm2718/HouseDiscordBot/handlers"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -56,6 +57,13 @@ func main() {
 		fmt.Println("error creating Discord session,", err)
 		os.Exit(constants.ERR_CREATEBOT)
 	}
+
+	fmt.Println("Bot is starting up.")
+
+	dg.AddHandler(handlers.GuildCreate)
+	dg.AddHandler(handlers.MessageCreate)
+
+	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages
 
 	// Open a websocket connection to Discord and begin listening.
 	err = dg.Open()
