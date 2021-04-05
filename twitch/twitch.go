@@ -10,23 +10,22 @@ import (
 	"github.com/nicklaw5/helix"
 )
 
+type TwitchChannel string
+type DiscordChannel string
+type TwitchOracles map[TwitchChannel][]DiscordChannel
+
 var (
 	clientId     string
 	clientSecret string
-	Oracles      []TwitchOracle
+	Oracles      TwitchOracles
 )
-
-type TwitchOracle struct {
-	TwitchChannel  string
-	DiscordChannel string
-}
 
 func init() {
 	clientId = os.Getenv("TWITCH_CLIENT_ID")
 	clientSecret = os.Getenv("TWITCH_CLIENT_SECRET")
 }
 
-func MonitorChannel(t TwitchOracle, s *discordgo.Session) {
+func MonitorChannel(t TwitchChannel, s *discordgo.Session) {
 	client, err := helix.NewClient(&helix.Options{
 		ClientID:     clientId,
 		ClientSecret: clientSecret,
@@ -48,8 +47,14 @@ func MonitorChannel(t TwitchOracle, s *discordgo.Session) {
 
 	// TODO: refresh access token if expired
 	for {
+		if len(Oracles[t]) == 0 {
+			fmt.Printf("No more channels monitoring for %v. Shutting down oracle.\n", string(t))
+			delete(Oracles, t)
+			return
+		}
+
 		resp, err := client.GetStreams(&helix.StreamsParams{
-			UserLogins: []string{t.TwitchChannel},
+			UserLogins: []string{string(t)},
 		})
 		if err != nil {
 			fmt.Println("Failed to query twitch", err)
@@ -64,7 +69,9 @@ func MonitorChannel(t TwitchOracle, s *discordgo.Session) {
 			// currently online
 			if !isOnline {
 				isOnline = true
-				s.ChannelMessageSend(t.DiscordChannel, t.TwitchChannel+" is online! Watch at http://twitch.tv/"+t.TwitchChannel)
+				for _, d := range Oracles[t] {
+					s.ChannelMessageSend(string(d), string(t)+" is online! Watch at http://twitch.tv/"+string(t))
+				}
 			}
 		}
 		time.Sleep(time.Second)

@@ -73,9 +73,9 @@ func main() {
 
 	// Register the twitch oracles
 
-	for _, oracle := range twitch.Oracles {
-		go twitch.MonitorChannel(oracle, dg)
-		fmt.Printf("Registering twitch oracle for, %+v\n", oracle)
+	for k := range twitch.Oracles {
+		go twitch.MonitorChannel(k, dg)
+		fmt.Println("Registering saved twitch oracles for", k)
 	}
 
 	// Wait here until CTRL-C or other term signal is received.
@@ -93,10 +93,11 @@ func main() {
 	writeOraclesToDisk(twitch.Oracles)
 }
 
-func readOraclesFromDisk(o *[]twitch.TwitchOracle) {
+func readOraclesFromDisk(o *twitch.TwitchOracles) {
 	rawData, err := os.ReadFile("oracles.json")
 	if err != nil {
 		fmt.Println("Error reading oracles from json,", err)
+		twitch.Oracles = twitch.TwitchOracles{}
 		return
 	}
 
@@ -107,7 +108,7 @@ func readOraclesFromDisk(o *[]twitch.TwitchOracle) {
 	}
 }
 
-func writeOraclesToDisk(o []twitch.TwitchOracle) {
+func writeOraclesToDisk(o twitch.TwitchOracles) {
 	b, err := json.Marshal(o)
 	if err != nil {
 		fmt.Println("Error converting oracles to json,", err)
