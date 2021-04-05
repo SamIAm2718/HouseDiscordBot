@@ -17,20 +17,14 @@ type (
 )
 
 type TwitchSession struct {
-	clientId     string
-	clientSecret string
-	dataPath     string
-	oracles      TwitchOracles
-	states       TwitchStates
-	client       *helix.Client
-	isConnected  bool
+	client      *helix.Client
+	dataPath    string
+	oracles     TwitchOracles
+	states      TwitchStates
+	isConnected bool
 }
 
 var activeOracles map[string]*TwitchSession
-
-func init() {
-	activeOracles = map[string]*TwitchSession{}
-}
 
 func GetSession(s *discordgo.Session) *TwitchSession {
 	return activeOracles[s.State.SessionID]
@@ -38,13 +32,21 @@ func GetSession(s *discordgo.Session) *TwitchSession {
 
 func New(id string, secret string, path string) (*TwitchSession, error) {
 	session := &TwitchSession{}
-	session.clientId = id
-	session.clientSecret = secret
-	session.dataPath = path
-	session.oracles = TwitchOracles{}
-	session.states = TwitchStates{}
+	var err error
 
-	err := utils.ReadJSONFromDisk(session.dataPath+"/twitchoracles.json", &session.oracles)
+	session.client, err = helix.NewClient(&helix.Options{
+		ClientID:     id,
+		ClientSecret: secret,
+		RedirectURI:  "http://localhost",
+	})
+	if err != nil {
+		return session, err
+	}
+	session.dataPath = path
+	session.oracles = make(TwitchOracles)
+	session.states = make(TwitchStates)
+
+	err = utils.ReadJSONFromDisk(session.dataPath+"/twitchoracles.json", &session.oracles)
 	if err != nil {
 		return session, err
 	}
@@ -55,22 +57,9 @@ func New(id string, secret string, path string) (*TwitchSession, error) {
 }
 
 func (t *TwitchSession) Open() error {
-	var err error
-
-	t.client, err = helix.NewClient(&helix.Options{
-		ClientID:     t.clientId,
-		ClientSecret: t.clientSecret,
-		RedirectURI:  "http://localhost",
-	})
-
+	resp, err := t.client.RequestAppAccessToken([]string{""})
 	if err != nil {
 		return err
-	}
-
-	// set access token
-	resp, err2 := t.client.RequestAppAccessToken([]string{""})
-	if err2 != nil {
-		return err2
 	} else if resp.Data.AccessToken == "" {
 		return errors.New("failure getting Access token")
 	}
@@ -123,7 +112,13 @@ func (t *TwitchSession) UnregisterOracle(c string, d string) {
 }
 func StartOracles(t *TwitchSession, s *discordgo.Session) {
 	if t.isConnected {
-		activeOracles[s.State.SessionID] = t
+		if activeOracles == nil {
+			activeOracles = make(map[string]*TwitchSession)
+			activeOracles[s.State.SessionID] = t
+		} else {
+			activeOracles[s.State.SessionID] = t
+		}
+
 		go monitorOracles(t, s)
 	}
 }
