@@ -1,5 +1,5 @@
 # HouseDiscordBot
-
+## Running the Bot
 To run the bot using go either run the command
 ```
 go run HouseDiscordBot.go
@@ -28,3 +28,15 @@ To run the project as a kubernetes pod
 2. kubectl apply -f k3sHouseBot.yaml
 ```
 Uses the repository https://github.com/bwmarrin/discordgo 
+
+## Using the Bot
+
+To use the bot you can use the command
+```
+housebot add channel <Twitch channel>
+```
+to register a Twitch channel to a Discord channel or
+```
+housebot remove channel <Twitch channel>
+```
+To unregister a Twitch Channel from a Discord channel 
