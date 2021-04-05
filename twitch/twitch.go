@@ -77,7 +77,6 @@ func StartOracles(s *discordgo.Session) {
 			foundMatch := false
 			for _, ts := range resp.Data.Streams {
 				foundMatch = strings.EqualFold(string(tc), ts.UserLogin)
-				fmt.Println(string(tc), ts.UserLogin, foundMatch, ts.Type)
 
 				if foundMatch {
 					if ts.Type == "live" && !States[tc] {

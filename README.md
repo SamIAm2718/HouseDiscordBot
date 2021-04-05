@@ -15,11 +15,16 @@ if you don't want to set environment vairables (Note to use the Twitch functiona
 docker run -e BOT_TOKEN=<Bot Token> \
 -e TWITCH_CLIENT_ID=<Twitch Client ID> \
 -e TWITCH_CLIENT_SECRET=<Twitch Client Secret> \
---name <Container Name> SamIAm2718/house-discord-bot
+--name <Container Name> samiam2718/house-discord-bot
 ```
 To run the project as a kubernetes pod 
 ```
-1. Create secret with k create secret generic housebot --from-literal='bottoken=<bot token>'
+1. Create secret with 
+    k create secret generic housebot \
+        --from-literal='bottoken=<bot token>' \
+        --from-literal='twitchclientid=<twitch client id>' \
+        --from-literal='twitchclientsecret=<twitch client secret>' \
+    
 2. kubectl apply -f k3sHouseBot.yaml
 ```
 Uses the repository https://github.com/bwmarrin/discordgo 

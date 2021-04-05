@@ -12,3 +12,13 @@ spec:
           secretKeyRef:
             name: "housebot"
             key: "bottoken"
+      - name: TWITCH_CLIENT_ID
+        valueFrom: # Reference to the secret | housebot.bottoken
+          secretKeyRef:
+            name: "housebot"
+            key: "twitchclientid"
+      - name: TWITCH_CLIENT_ID
+        valueFrom: # Reference to the secret | housebot.bottoken
+          secretKeyRef:
+            name: "housebot"
+            key: "twitchclientsecret"
