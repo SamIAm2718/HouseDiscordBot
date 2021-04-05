@@ -70,6 +70,8 @@ func (t *TwitchSession) Open() error {
 }
 
 func (t *TwitchSession) Close() error {
+	t.isConnected = false
+
 	err := utils.WriteJSONToDisk(t.dataPath+"/twitchoracles.json", t.oracles)
 	if err != nil {
 		return err
@@ -124,7 +126,7 @@ func StartOracles(t *TwitchSession, s *discordgo.Session) {
 }
 
 func monitorOracles(t *TwitchSession, s *discordgo.Session) {
-	for {
+	for t.isConnected {
 		queryChannels := []string{}
 
 		for twitchChannel := range t.oracles {
@@ -169,4 +171,6 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 		}
 		time.Sleep(2 * time.Minute)
 	}
+
+	delete(activeOracles, s.State.SessionID)
 }
