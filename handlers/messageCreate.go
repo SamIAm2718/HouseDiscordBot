@@ -13,7 +13,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	if strings.HasPrefix(m.Content, "HouseBot") {
+	if strings.HasPrefix(strings.ToLower(m.Content), "housebot") {
 		commandParams := strings.Split(m.Content, " ")[1:]
 
 		if len(commandParams) > 0 {
@@ -37,11 +37,11 @@ func commandAdd(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
 		switch c[0] {
 		case "channel":
 
-			t := twitch.TwitchChannel(c[1])
+			t := twitch.TwitchChannel(strings.ToLower(c[1]))
 
 			for _, d := range twitch.Oracles[t] {
 				if d == twitch.DiscordChannel(m.ChannelID) {
-					_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch has already been registered to this channel.")
+					_, err := s.ChannelMessageSend(m.ChannelID, string(t)+"'s twitch has already been registered to this channel.")
 					if err != nil {
 						fmt.Println("Error sending message,", err)
 					}
@@ -49,13 +49,17 @@ func commandAdd(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
 				}
 			}
 
-			fmt.Println("Registering twitch oracle for", c[1], "in channel", m.ChannelID)
+			fmt.Println("Registering twitch oracle for", string(t), "in channel", m.ChannelID)
 
 			if twitch.Oracles[t] != nil {
 				twitch.Oracles[t] = append(twitch.Oracles[t], twitch.DiscordChannel(m.ChannelID))
 			} else {
 				twitch.Oracles[t] = []twitch.DiscordChannel{twitch.DiscordChannel(m.ChannelID)}
-				go twitch.MonitorChannel(t, s)
+			}
+
+			_, err := s.ChannelMessageSend(m.ChannelID, string(t)+"'s twitch successfully registered to this channel.")
+			if err != nil {
+				fmt.Println("Error sending message,", err)
 			}
 
 			return
@@ -72,14 +76,15 @@ func commandRemove(s *discordgo.Session, m *discordgo.MessageCreate, c []string)
 	if len(c) == 2 {
 		switch c[0] {
 		case "channel":
-			t := twitch.TwitchChannel(c[1])
+			t := twitch.TwitchChannel(strings.ToLower(c[1]))
 
 			for i, d := range twitch.Oracles[t] {
 				if d == twitch.DiscordChannel(m.ChannelID) {
+					fmt.Println("Removing twitch oracle for", string(t), "in channel", m.ChannelID)
 					twitch.Oracles[t][i] = twitch.Oracles[t][len(twitch.Oracles[t])-1]
 					twitch.Oracles[t][len(twitch.Oracles[t])-1] = ""
 					twitch.Oracles[t] = twitch.Oracles[t][:len(twitch.Oracles[t])-1]
-					_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch successfully removed from this channel.")
+					_, err := s.ChannelMessageSend(m.ChannelID, string(t)+"'s twitch successfully removed from this channel.")
 					if err != nil {
 						fmt.Println("Error sending message,", err)
 					}
@@ -87,7 +92,7 @@ func commandRemove(s *discordgo.Session, m *discordgo.MessageCreate, c []string)
 				}
 			}
 
-			_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch is not registered to this channel.")
+			_, err := s.ChannelMessageSend(m.ChannelID, string(t)+"'s twitch is not registered to this channel.")
 			if err != nil {
 				fmt.Println("Error sending message,", err)
 			}

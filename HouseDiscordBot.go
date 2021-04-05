@@ -72,12 +72,8 @@ func main() {
 		os.Exit(constants.ERR_BOTOPEN)
 	}
 
-	// Register the twitch oracles
-
-	for k := range twitch.Oracles {
-		go twitch.MonitorChannel(k, dg)
-		fmt.Println("Registering saved twitch oracles for", k)
-	}
+	// Start the twitch oracles
+	go twitch.StartOracles(dg)
 
 	// Wait here until CTRL-C or other term signal is received.
 	fmt.Println("Bot is now running.  Press CTRL-C to exit.")
