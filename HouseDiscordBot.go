@@ -45,8 +45,9 @@ func init() {
 		token = os.Getenv("BOT_TOKEN")
 	}
 
-	// Read twitch Oracle Data from JSONs
-	readOraclesFromDisk(&twitch.Oracles)
+	// Read Data from JSONs
+	readJSONFromDisk("data", "twitchstates.json", &twitch.States)
+	readJSONFromDisk("data", "twitchoracles.json", &twitch.Oracles)
 }
 
 func main() {
@@ -89,35 +90,65 @@ func main() {
 	dg.Close()
 
 	// Save twitch oracles for next session
-	fmt.Println("Writing twitch oracles to disk.")
-	writeOraclesToDisk(twitch.Oracles)
+	fmt.Println("Writing data to disk.")
+	writeJSONToDisk("data", "twitchstates.json", twitch.States)
+	writeJSONToDisk("data", "twitchoracles.json", twitch.Oracles)
 }
 
-func readOraclesFromDisk(o *twitch.TwitchOracles) {
-	rawData, err := os.ReadFile("oracles.json")
+func readJSONFromDisk(filePath string, fileName string, o interface{}) {
+	if filePath != "" {
+		fileName = "/" + fileName
+	}
+
+	rawData, err := os.ReadFile(filePath + fileName)
 	if err != nil {
-		fmt.Println("Error reading oracles from json,", err)
-		twitch.Oracles = twitch.TwitchOracles{}
-		return
+		if os.IsNotExist(err) {
+			fmt.Println(filePath+fileName, "does not exist. Will be created on close.")
+			return
+		} else {
+			fmt.Println("Error reading from json,", err)
+			return
+		}
 	}
 
 	err = json.Unmarshal(rawData, o)
 	if err != nil {
-		fmt.Println("Error converting json to oracles,", err)
+		fmt.Println("Error converting json,", err)
 		return
 	}
 }
 
-func writeOraclesToDisk(o twitch.TwitchOracles) {
+func writeJSONToDisk(filePath string, fileName string, o interface{}) {
+	if filePath != "" {
+		fileName = "/" + fileName
+	}
+
 	b, err := json.Marshal(o)
 	if err != nil {
-		fmt.Println("Error converting oracles to json,", err)
+		fmt.Println("Error converting json,", err)
 		return
 	}
 
-	err = os.WriteFile("oracles.json", b, 0666)
+	err = os.WriteFile(filePath+fileName, b, 0666)
 	if err != nil {
-		fmt.Println("Error writing oracles to disk,", err)
-		return
+		if os.IsNotExist(err) {
+			fmt.Println("Directory", filePath, "does not exist. Creating directory")
+
+			err = os.Mkdir(filePath, 0755)
+			if err != nil {
+				fmt.Println("Error creating directory,", err)
+				return
+			}
+
+			err = os.WriteFile(filePath+fileName, b, 0666)
+			if err != nil {
+				fmt.Println("Error writing to disk,", err)
+				return
+			}
+
+		} else {
+			fmt.Println("Error writing to disk,", err)
+			return
+		}
 	}
 }

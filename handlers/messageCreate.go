@@ -73,17 +73,25 @@ func commandRemove(s *discordgo.Session, m *discordgo.MessageCreate, c []string)
 		switch c[0] {
 		case "channel":
 			t := twitch.TwitchChannel(c[1])
+
 			for i, d := range twitch.Oracles[t] {
 				if d == twitch.DiscordChannel(m.ChannelID) {
 					twitch.Oracles[t][i] = twitch.Oracles[t][len(twitch.Oracles[t])-1]
 					twitch.Oracles[t][len(twitch.Oracles[t])-1] = ""
 					twitch.Oracles[t] = twitch.Oracles[t][:len(twitch.Oracles[t])-1]
+					_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch successfully removed from this channel.")
+					if err != nil {
+						fmt.Println("Error sending message,", err)
+					}
+					return
 				}
 			}
-			_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch successfully removed from this channel.")
+
+			_, err := s.ChannelMessageSend(m.ChannelID, c[1]+"'s twitch is not registered to this channel.")
 			if err != nil {
 				fmt.Println("Error sending message,", err)
 			}
+
 			return
 		}
 	}

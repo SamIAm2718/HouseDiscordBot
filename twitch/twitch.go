@@ -10,19 +10,25 @@ import (
 	"github.com/nicklaw5/helix"
 )
 
-type TwitchChannel string
-type DiscordChannel string
-type TwitchOracles map[TwitchChannel][]DiscordChannel
+type (
+	TwitchChannel  string
+	DiscordChannel string
+	TwitchOracles  map[TwitchChannel][]DiscordChannel
+	TwitchStates   map[TwitchChannel]bool
+)
 
 var (
 	clientId     string
 	clientSecret string
 	Oracles      TwitchOracles
+	States       TwitchStates
 )
 
 func init() {
 	clientId = os.Getenv("TWITCH_CLIENT_ID")
 	clientSecret = os.Getenv("TWITCH_CLIENT_SECRET")
+	Oracles = TwitchOracles{}
+	States = TwitchStates{}
 }
 
 func MonitorChannel(t TwitchChannel, s *discordgo.Session) {
@@ -43,13 +49,12 @@ func MonitorChannel(t TwitchChannel, s *discordgo.Session) {
 	}
 	client.SetAppAccessToken(resp.Data.AccessToken)
 
-	var isOnline bool
-
 	// TODO: refresh access token if expired
 	for {
 		if len(Oracles[t]) == 0 {
 			fmt.Printf("No more channels monitoring for %v. Shutting down oracle.\n", string(t))
 			delete(Oracles, t)
+			delete(States, t)
 			return
 		}
 
@@ -62,13 +67,16 @@ func MonitorChannel(t TwitchChannel, s *discordgo.Session) {
 
 		if len(resp.Data.Streams) == 0 {
 			// current offline
-			if isOnline {
-				isOnline = false
+			if States[t] {
+				States[t] = false
+				for _, d := range Oracles[t] {
+					s.ChannelMessageSend(string(d), string(t)+" is now offline!")
+				}
 			}
 		} else {
 			// currently online
-			if !isOnline {
-				isOnline = true
+			if !States[t] {
+				States[t] = true
 				for _, d := range Oracles[t] {
 					s.ChannelMessageSend(string(d), string(t)+" is online! Watch at http://twitch.tv/"+string(t))
 				}
