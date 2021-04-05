@@ -9,7 +9,7 @@ after setting the enviornment variable `BOT_TOKEN` to your Discord bot's token o
 go run HouseDiscordBot.go -t <Bot token>
 go run HouseDiscordBot.go -o <Path to file containing token>
 ```
-if you don't want to set environment vairables. To run the project on Docker use the command
+if you don't want to set environment vairables (Note to use the Twitch functionality you will need to pass your Twitch app's client id through the environment variable TWITCH_CLIENT_ID and the Twitch app's secret through the enviornment variable TWITCH_CLIENT_SECRET). To run the project on Docker use the command
 
 ```
 docker run -e BOT_TOKEN=<Bot Token> \
