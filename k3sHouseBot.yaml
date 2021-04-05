@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: housebot
+spec:
+  containers:
+  - image: samiam2718/house-discord-bot
+    name: housebot
+    env:
+      - name: BOT_TOKEN
+        valueFrom: # Reference to the secret | housebot.bottoken
+          secretKeyRef:
+            name: "housebot"
+            key: "bottoken"
