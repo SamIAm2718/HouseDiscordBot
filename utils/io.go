@@ -2,7 +2,7 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"strings"
 )
@@ -43,11 +43,8 @@ func WriteJSONToDisk(path string, o interface{}) error {
 	}
 
 	err = os.WriteFile(path, jsonData, 0666)
-
-	if os.IsNotExist(err) {
+	if errors.Is(err, os.ErrNotExist) {
 		dir := getDir(path)
-
-		fmt.Println("Directory", dir, "does not exist. Creating directory")
 
 		err = os.Mkdir(dir, 0755)
 		if err != nil {
@@ -59,6 +56,5 @@ func WriteJSONToDisk(path string, o interface{}) error {
 			return err
 		}
 	}
-
 	return err
 }

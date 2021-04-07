@@ -2,25 +2,31 @@ package twitch
 
 import (
 	"errors"
-	"fmt"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/SamIAm2718/HouseDiscordBot/constants"
 	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
 	"github.com/nicklaw5/helix"
+	"github.com/sirupsen/logrus"
 )
 
 type (
-	TwitchOracles map[string][]string
-	TwitchStates  map[string]bool
+	twitchOracles map[string][]string
+	twitchStates  map[string]bool
 )
 
+type oracleInfo struct {
+	Oracles twitchOracles
+	States  twitchStates
+}
+
 type TwitchSession struct {
+	name        string
 	client      *helix.Client
-	dataPath    string
-	oracles     TwitchOracles
-	states      TwitchStates
+	info        *oracleInfo
 	isConnected bool
 }
 
@@ -30,8 +36,9 @@ func GetSession(s *discordgo.Session) *TwitchSession {
 	return activeOracles[s.State.SessionID]
 }
 
-func New(id string, secret string, path string) (*TwitchSession, error) {
+func New(id string, secret string, name string) (*TwitchSession, error) {
 	session := &TwitchSession{}
+	session.name = name
 	var err error
 
 	session.client, err = helix.NewClient(&helix.Options{
@@ -42,16 +49,17 @@ func New(id string, secret string, path string) (*TwitchSession, error) {
 	if err != nil {
 		return session, err
 	}
-	session.dataPath = path
-	session.oracles = make(TwitchOracles)
-	session.states = make(TwitchStates)
 
-	err = utils.ReadJSONFromDisk(session.dataPath+"/twitchoracles.json", &session.oracles)
-	if err != nil {
-		return session, err
+	session.info = &oracleInfo{
+		make(twitchOracles),
+		make(twitchStates),
 	}
 
-	err = utils.ReadJSONFromDisk(session.dataPath+"/twitchstates.json", &session.states)
+	err = utils.ReadJSONFromDisk(constants.DataPath+"/"+session.name+".json", session.info)
+	if errors.Is(err, os.ErrNotExist) {
+		utils.Log.Warn("Session oracle info does not exist on disk.")
+		err = nil
+	}
 
 	return session, err
 }
@@ -61,7 +69,7 @@ func (t *TwitchSession) Open() error {
 	if err != nil {
 		return err
 	} else if resp.Data.AccessToken == "" {
-		return errors.New("failure getting Access token")
+		return errors.New("failed to get access token")
 	}
 	t.client.SetAppAccessToken(resp.Data.AccessToken)
 	t.isConnected = true
@@ -72,16 +80,11 @@ func (t *TwitchSession) Open() error {
 func (t *TwitchSession) Close() error {
 	t.isConnected = false
 
-	err := utils.WriteJSONToDisk(t.dataPath+"/twitchoracles.json", t.oracles)
-	if err != nil {
-		return err
-	}
-
-	return utils.WriteJSONToDisk(t.dataPath+"/twitchstates.json", t.states)
+	return utils.WriteJSONToDisk(constants.DataPath+"/"+t.name+".json", t.info)
 }
 
 func (t *TwitchSession) ContainsOracle(c string, d string) bool {
-	for _, discordChannel := range t.oracles[c] {
+	for _, discordChannel := range t.info.Oracles[c] {
 		if d == discordChannel {
 			return true
 		}
@@ -91,22 +94,22 @@ func (t *TwitchSession) ContainsOracle(c string, d string) bool {
 }
 
 func (t *TwitchSession) RegisterOracle(c string, d string) {
-	if t.oracles[c] != nil {
+	if t.info.Oracles[c] != nil {
 		if !t.ContainsOracle(c, d) {
-			t.oracles[c] = append(t.oracles[c], d)
+			t.info.Oracles[c] = append(t.info.Oracles[c], d)
 		}
 	} else {
-		t.oracles[c] = []string{d}
+		t.info.Oracles[c] = []string{d}
 	}
 }
 
 func (t *TwitchSession) UnregisterOracle(c string, d string) {
 	if t.ContainsOracle(c, d) {
-		for i, discordChannel := range t.oracles[c] {
+		for i, discordChannel := range t.info.Oracles[c] {
 			if d == discordChannel {
-				t.oracles[c][i] = t.oracles[c][len(t.oracles[c])-1]
-				t.oracles[c][len(t.oracles[c])-1] = ""
-				t.oracles[c] = t.oracles[c][:len(t.oracles[c])-1]
+				t.info.Oracles[c][i] = t.info.Oracles[c][len(t.info.Oracles[c])-1]
+				t.info.Oracles[c][len(t.info.Oracles[c])-1] = ""
+				t.info.Oracles[c] = t.info.Oracles[c][:len(t.info.Oracles[c])-1]
 				return
 			}
 		}
@@ -129,11 +132,11 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 	for t.isConnected {
 		queryChannels := []string{}
 
-		for twitchChannel := range t.oracles {
-			if len(t.oracles[twitchChannel]) == 0 {
-				fmt.Printf("No more channels monitoring for %v. Shutting down oracle.\n", twitchChannel)
-				delete(t.oracles, twitchChannel)
-				delete(t.oracles, twitchChannel)
+		for twitchChannel := range t.info.Oracles {
+			if len(t.info.Oracles[twitchChannel]) == 0 {
+				utils.Log.Infof("No more channels monitoring for %v. Shutting down oracle.\n", twitchChannel)
+				delete(t.info.Oracles, twitchChannel)
+				delete(t.info.States, twitchChannel)
 			} else {
 				queryChannels = append(queryChannels, twitchChannel)
 			}
@@ -143,18 +146,18 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 			UserLogins: queryChannels,
 		})
 		if err != nil {
-			fmt.Println("Failed to query twitch", err)
+			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
 		}
 
-		for twitchChannel := range t.oracles {
+		for twitchChannel := range t.info.Oracles {
 			foundMatch := false
 			for _, streams := range resp.Data.Streams {
 				foundMatch = strings.EqualFold(twitchChannel, streams.UserLogin)
 
 				if foundMatch {
-					if streams.Type == "live" && !t.states[twitchChannel] {
-						t.states[twitchChannel] = true
-						for _, discordChannel := range t.oracles[twitchChannel] {
+					if streams.Type == "live" && !t.info.States[twitchChannel] {
+						t.info.States[twitchChannel] = true
+						for _, discordChannel := range t.info.Oracles[twitchChannel] {
 							s.ChannelMessageSend(discordChannel, twitchChannel+" is online! Watch at http://twitch.tv/"+twitchChannel)
 						}
 					}
@@ -162,14 +165,14 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 				}
 			}
 
-			if !foundMatch && t.states[twitchChannel] {
-				t.states[twitchChannel] = false
-				for _, discordChannel := range t.oracles[twitchChannel] {
+			if !foundMatch && t.info.States[twitchChannel] {
+				t.info.States[twitchChannel] = false
+				for _, discordChannel := range t.info.Oracles[twitchChannel] {
 					s.ChannelMessageSend(discordChannel, twitchChannel+" is now offline!")
 				}
 			}
 		}
-		time.Sleep(2 * time.Minute)
+		time.Sleep(5 * time.Second)
 	}
 
 	delete(activeOracles, s.State.SessionID)
