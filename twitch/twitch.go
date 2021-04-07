@@ -176,7 +176,7 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 				}
 			}
 		}
-		time.Sleep(time.Minute)
+		time.Sleep(constants.TwitchQueryInterval)
 	}
 
 	delete(activeOracles, s.State.SessionID)
