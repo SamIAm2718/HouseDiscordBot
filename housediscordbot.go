@@ -26,8 +26,8 @@ func init() {
 
 	// We process the most important flag to receive a token
 	// The flags listed in order of importance are
-	// t > e > p
-	// If no flags are set the Bot exits with value ERR_NOFLAGS
+	// t > p
+	// If no flags are set the Bot loads token from environment variable BOT_TOKEN
 	if len(token) > 0 {
 
 	} else if len(tokenPath) > 0 {
@@ -37,8 +37,7 @@ func init() {
 		}
 		token = string(rawToken)
 	} else {
-		utils.Log.Warning("No Flags specified.")
-		utils.Log.Info("Loading bot token from the environment variable BOT_TOKEN.")
+		utils.Log.Warning("No Flags specified. Loading bot token from the environment variable BOT_TOKEN.")
 		token = os.Getenv("BOT_TOKEN")
 	}
 }
@@ -79,7 +78,7 @@ func main() {
 	go twitch.StartOracles(ts, dg)
 
 	// Wait here until CTRL-C or other term signal is received.
-	utils.Log.Info("Bot is now running.  Press CTRL-C to exit.")
+	utils.Log.Info("Bot is now running.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
@@ -91,4 +90,6 @@ func main() {
 	// Cleanly close down the Discord session.
 	utils.Log.Info("Bot is shutting down.")
 	dg.Close()
+
+	utils.Log.Info("Bot has shutdown.")
 }

@@ -57,7 +57,7 @@ func New(id string, secret string, name string) (*TwitchSession, error) {
 
 	err = utils.ReadJSONFromDisk(constants.DataPath+"/"+session.name+".json", session.info)
 	if errors.Is(err, os.ErrNotExist) {
-		utils.Log.Warn("Session oracle info does not exist on disk.")
+		utils.Log.Warn("Oracle info does not exist on disk. Will be created on shutdown.")
 		err = nil
 	}
 
@@ -142,12 +142,16 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 			}
 		}
 
+		utils.Log.Debug("Sending query request to Twitch.")
+
 		resp, err := t.client.GetStreams(&helix.StreamsParams{
 			UserLogins: queryChannels,
 		})
 		if err != nil {
 			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
 		}
+
+		utils.Log.Debugf("Twitch Response: %+v\n", resp)
 
 		for twitchChannel := range t.info.Oracles {
 			foundMatch := false
@@ -172,7 +176,7 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 				}
 			}
 		}
-		time.Sleep(5 * time.Second)
+		time.Sleep(time.Minute)
 	}
 
 	delete(activeOracles, s.State.SessionID)
