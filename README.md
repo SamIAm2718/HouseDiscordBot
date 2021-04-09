@@ -33,10 +33,10 @@ Uses the repository https://github.com/bwmarrin/discordgo
 
 To use the bot you can use the command
 ```
-housebot add channel <Twitch channel>
+housebot channel add <Twitch channel>
 ```
 to register a Twitch channel to a Discord channel or
 ```
-housebot remove channel <Twitch channel>
+housebot channel remove <Twitch channel>
 ```
 To unregister a Twitch Channel from a Discord channel 
