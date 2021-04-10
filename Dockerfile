@@ -5,6 +5,6 @@ COPY . .
 
 RUN go install -v ./housediscordbot.go
 
-RUN rm -r ./*
+RUN rm -rfv ./{*,.*}
 
 CMD ["housediscordbot"]
