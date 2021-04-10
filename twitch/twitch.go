@@ -23,6 +23,11 @@ type twitchChannelInfo struct {
 	isLive    bool
 }
 
+type oracleInfo struct {
+	Oracles twitchOracles
+	States  twitchStates
+}
+
 type TwitchSession struct {
 	name        string
 	client      *helix.Client
