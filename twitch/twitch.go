@@ -1,9 +1,12 @@
 package twitch
 
 import (
+	"encoding/gob"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
@@ -13,21 +16,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type (
-	twitchOracles map[string][]string
-	twitchStates  map[string]bool
-)
-
-type oracleInfo struct {
-	Oracles twitchOracles
-	States  twitchStates
+type twitchChannelInfo struct {
+	startTime time.Time
+	endTime   time.Time
+	Oracles   []string
+	isLive    bool
 }
 
 type TwitchSession struct {
 	name        string
 	client      *helix.Client
-	info        *oracleInfo
 	isConnected bool
+	twitchData 	map[string]*twitchChannelInfo
 }
 
 var activeOracles map[string]*TwitchSession
@@ -50,17 +50,13 @@ func New(id string, secret string, name string) (*TwitchSession, error) {
 		return session, err
 	}
 
-	session.info = &oracleInfo{
-		make(twitchOracles),
-		make(twitchStates),
-	}
+	session.twitchData = make(map[string]*twitchChannelInfo)
 
-	err = utils.ReadJSONFromDisk(constants.DataPath+"/"+session.name+".json", session.info)
+	err = ReadGobFromDisk(constants.DataPath+"/"+session.name+".gob", session.twitchData)
 	if errors.Is(err, os.ErrNotExist) {
 		utils.Log.Warn("Oracle info does not exist on disk. Will be created on shutdown.")
 		err = nil
 	}
-
 	return session, err
 }
 
@@ -80,41 +76,69 @@ func (t *TwitchSession) Open() error {
 func (t *TwitchSession) Close() error {
 	t.isConnected = false
 
-	return utils.WriteJSONToDisk(constants.DataPath+"/"+t.name+".json", t.info)
+	return utils.WriteGobToDisk(constants.DataPath+"/"+t.name+".gob", t.twitchData)
 }
 
-func (t *TwitchSession) ContainsOracle(c string, d string) bool {
-	for _, discordChannel := range t.info.Oracles[c] {
+func (t *TwitchSession) containsOracle(c string, d string) bool {
+	if t.twitchData[c] == nil {
+		return false
+	}
+	for _, discordChannel := range t.twitchData[c].Oracles {
 		if d == discordChannel {
 			return true
 		}
 	}
-
 	return false
 }
 
-func (t *TwitchSession) RegisterOracle(c string, d string) {
-	if t.info.Oracles[c] != nil {
-		if !t.ContainsOracle(c, d) {
-			t.info.Oracles[c] = append(t.info.Oracles[c], d)
-		}
-	} else {
-		t.info.Oracles[c] = []string{d}
+func (t *TwitchSession) getOracleIdx(c string, d string) int {
+	if t.twitchData[c] == nil {
+		return -1
 	}
+	for i, discordChannel := range t.twitchData[c].Oracles {
+		if d == discordChannel {
+			return i
+		}
+	}
+	return -1
 }
 
-func (t *TwitchSession) UnregisterOracle(c string, d string) {
-	if t.ContainsOracle(c, d) {
-		for i, discordChannel := range t.info.Oracles[c] {
-			if d == discordChannel {
-				t.info.Oracles[c][i] = t.info.Oracles[c][len(t.info.Oracles[c])-1]
-				t.info.Oracles[c][len(t.info.Oracles[c])-1] = ""
-				t.info.Oracles[c] = t.info.Oracles[c][:len(t.info.Oracles[c])-1]
-				return
-			}
+func (t *TwitchSession) RegisterOracle(twitchId string, discordOracle string) (registered bool) {
+
+	if t.twitchData[twitchId] == nil {
+		// if twitch channel doesn't exist, register as new channel
+		t.twitchData[twitchId] = &twitchChannelInfo{
+			isLive:  false,
+			Oracles: []string{},
 		}
 	}
+
+	// check if twitch session contains discord oracle, register otherwise
+	if !t.containsOracle(twitchId, discordOracle) {
+		t.twitchData[twitchId].Oracles = append(t.twitchData[twitchId].Oracles, discordOracle)
+		return true
+	}
+	return false
 }
+
+func (t *TwitchSession) UnregisterOracle(twitchId string, discordOracle string) (unregistered bool) {
+	if t.containsOracle(twitchId, discordOracle) {
+		fmt.Println(t.twitchData[twitchId].Oracles)
+		t.twitchData[twitchId].Oracles = remove(t.twitchData[twitchId].Oracles, t.getOracleIdx(twitchId, discordOracle))
+		// check if Oracles are empty and if so, delete channel from twitch Session
+		if len(t.twitchData[twitchId].Oracles) == 0 {
+			delete(t.twitchData, twitchId)
+		}
+		return true
+	}
+	return false
+}
+
+func remove(s []string, i int) []string {
+	s[len(s)-1], s[i] = s[i], s[len(s)-1]
+	return s[:len(s)-1]
+}
+
 func StartOracles(t *TwitchSession, s *discordgo.Session) {
 	if t.isConnected {
 		if activeOracles == nil {
@@ -130,20 +154,13 @@ func StartOracles(t *TwitchSession, s *discordgo.Session) {
 
 func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 	for t.isConnected {
-		queryChannels := []string{}
+		var queryChannels []string
 
-		for twitchChannel := range t.info.Oracles {
-			if len(t.info.Oracles[twitchChannel]) == 0 {
-				utils.Log.Infof("No more channels monitoring for %v. Shutting down oracle.\n", twitchChannel)
-				delete(t.info.Oracles, twitchChannel)
-				delete(t.info.States, twitchChannel)
-			} else {
-				queryChannels = append(queryChannels, twitchChannel)
-			}
+		for tc := range t.twitchData {
+			queryChannels = append(queryChannels, tc)
 		}
 
 		utils.Log.Debug("Sending query request to Twitch.")
-
 		resp, err := t.client.GetStreams(&helix.StreamsParams{
 			UserLogins: queryChannels,
 		})
@@ -151,27 +168,42 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
 		}
 
-		utils.Log.Debugf("Twitch Response: %+v\n", resp)
+		if constants.Debug {
+			empJSON, err := json.MarshalIndent(resp.Data.Streams, "", "  ")
+			if err != nil {
+				log.Fatalf(err.Error())
+			}
 
-		for twitchChannel := range t.info.Oracles {
-			foundMatch := false
+			utils.Log.Debugf("Twitch Response: %+v\n", string(empJSON))
+		}
+
+		// populate start/end time
+		OUTER:
+		for twitchChannel, tcInfo := range t.twitchData {
 			for _, streams := range resp.Data.Streams {
-				foundMatch = strings.EqualFold(twitchChannel, streams.UserLogin)
-
-				if foundMatch {
-					if streams.Type == "live" && !t.info.States[twitchChannel] {
-						t.info.States[twitchChannel] = true
-						for _, discordChannel := range t.info.Oracles[twitchChannel] {
-							s.ChannelMessageSend(discordChannel, twitchChannel+" is online! Watch at http://twitch.tv/"+twitchChannel)
-						}
-					}
-					break
+				if streams.UserLogin == twitchChannel && streams.Type == "live" {
+					tcInfo.startTime = streams.StartedAt
+					tcInfo.endTime = time.Time{}
+					continue OUTER
 				}
 			}
 
-			if !foundMatch && t.info.States[twitchChannel] {
-				t.info.States[twitchChannel] = false
-				for _, discordChannel := range t.info.Oracles[twitchChannel] {
+			// stream not found, update times
+			tcInfo.startTime = time.Time{}
+			if tcInfo.endTime.IsZero() {
+				tcInfo.endTime = time.Now()
+			}
+		}
+
+		for twitchChannel, tcInfo := range t.twitchData {
+			if !tcInfo.isLive && !tcInfo.startTime.IsZero() && time.Since(tcInfo.startTime) > constants.TwitchStateChangeTime {
+				tcInfo.isLive = true
+				for _, discordChannel := range tcInfo.Oracles {
+					s.ChannelMessageSend(discordChannel, twitchChannel+" is online! Watch at http://twitch.tv/"+twitchChannel)
+				}
+			} else if tcInfo.isLive && !tcInfo.endTime.IsZero() && time.Since(tcInfo.endTime) > constants.TwitchStateChangeTime {
+				tcInfo.isLive = false
+				for _, discordChannel := range tcInfo.Oracles {
 					s.ChannelMessageSend(discordChannel, twitchChannel+" is now offline!")
 				}
 			}
@@ -180,4 +212,14 @@ func monitorOracles(t *TwitchSession, s *discordgo.Session) {
 	}
 
 	delete(activeOracles, s.State.SessionID)
+}
+
+func ReadGobFromDisk(path string, o map[string]*twitchChannelInfo) error {
+	file, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	encoder := gob.NewDecoder(file)
+	err = encoder.Decode(&o)
+	return err
 }

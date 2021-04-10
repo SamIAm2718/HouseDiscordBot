@@ -1,19 +1,35 @@
 package utils
 
 import (
-	"encoding/json"
-	"errors"
+	"encoding/gob"
 	"os"
 	"strings"
 )
 
-func ReadJSONFromDisk(path string, o interface{}) error {
-	rawData, err := os.ReadFile(path)
+func WriteGobToDisk(path string, o interface{}) error {
+
+	//check if file exists
+	var _, err = os.Stat(path)
+
+	if os.IsNotExist(err) {
+		dir := getDir(path)
+
+		err = os.Mkdir(dir, 0755)
+		if err != nil {
+			return err
+		}
+	}
+	var file, err1 = os.Create(path)
+	if err1 != nil {
+		return err
+	}
+	defer file.Close()
+	dataEncoder := gob.NewEncoder(file)
+	err = dataEncoder.Encode(o)
 	if err != nil {
 		return err
 	}
-
-	return json.Unmarshal(rawData, o)
+	return err
 }
 
 func getDir(s string) string {
@@ -34,27 +50,4 @@ func getDir(s string) string {
 
 		return dir
 	}
-}
-
-func WriteJSONToDisk(path string, o interface{}) error {
-	jsonData, err := json.Marshal(o)
-	if err != nil {
-		return err
-	}
-
-	err = os.WriteFile(path, jsonData, 0666)
-	if errors.Is(err, os.ErrNotExist) {
-		dir := getDir(path)
-
-		err = os.Mkdir(dir, 0755)
-		if err != nil {
-			return err
-		}
-
-		err = os.WriteFile(path, jsonData, 0666)
-		if err != nil {
-			return err
-		}
-	}
-	return err
 }
