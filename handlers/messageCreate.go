@@ -72,7 +72,6 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"channel_id":     m.ChannelID,
 					"server_id":      m.GuildID}).Info("Unregistered oracle.")
 
-
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully unregistered from this Discord channel.")
 				if err != nil {
 					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
