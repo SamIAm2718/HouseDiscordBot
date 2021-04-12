@@ -8,6 +8,7 @@ import (
 )
 
 func WriteGobToDisk(path string, o interface{}) error {
+  
 	//check if file exists and if not creates a directory for it
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		dir := getDir(path)
