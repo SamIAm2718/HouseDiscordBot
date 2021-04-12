@@ -23,9 +23,7 @@ func WriteGobToDisk(path string, o interface{}) error {
 	}
 	defer file.Close()
 
-	err = gob.NewEncoder(file).Encode(o)
-
-	return err
+	return gob.NewEncoder(file).Encode(o)
 }
 
 func getDir(s string) string {
