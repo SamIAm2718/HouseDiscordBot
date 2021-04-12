@@ -2,34 +2,29 @@ package utils
 
 import (
 	"encoding/gob"
+	"errors"
 	"os"
 	"strings"
 )
 
 func WriteGobToDisk(path string, o interface{}) error {
-
-	//check if file exists
-	var _, err = os.Stat(path)
-
-	if os.IsNotExist(err) {
+  
+	//check if file exists and if not creates a directory for it
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		dir := getDir(path)
 
-		err = os.Mkdir(dir, 0755)
-		if err != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
 			return err
 		}
 	}
-	var file, err1 = os.Create(path)
-	if err1 != nil {
-		return err
-	}
-	defer file.Close()
-	dataEncoder := gob.NewEncoder(file)
-	err = dataEncoder.Encode(o)
+
+	file, err := os.Create(path)
 	if err != nil {
 		return err
 	}
-	return err
+	defer file.Close()
+
+	return gob.NewEncoder(file).Encode(o)
 }
 
 func getDir(s string) string {
