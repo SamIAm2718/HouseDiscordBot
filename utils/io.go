@@ -8,6 +8,7 @@ import (
 )
 
 func WriteGobToDisk(path string, o interface{}) error {
+  
 	//check if file exists and if not creates a directory for it
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		dir := getDir(path)
@@ -23,9 +24,7 @@ func WriteGobToDisk(path string, o interface{}) error {
 	}
 	defer file.Close()
 
-	err = gob.NewEncoder(file).Encode(o)
-
-	return err
+	return gob.NewEncoder(file).Encode(o)
 }
 
 func getDir(s string) string {
