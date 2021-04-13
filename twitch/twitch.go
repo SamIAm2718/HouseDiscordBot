@@ -33,11 +33,10 @@ type Session struct {
 	twitchData  map[string]*twitchChannelInfo // Map of twitch channel to its info
 }
 
-// Map of Discord sessions to twitch sessions
-var activeSessions map[string]*Session
-
-// Map of Guild ID to status of guild connection
-var guildStatus map[string]bool
+var (
+	activeSessions map[string]*Session // Map of Discord sessions to twitch sessions
+	guildStatus    map[string]bool     // Map of Guild ID to status of guild connection
+)
 
 func init() {
 	activeSessions = make(map[string]*Session)
@@ -223,8 +222,8 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 		for _, tcInfo := range ts.twitchData {
 			if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
 				for guild, discordChannels := range tcInfo.DiscordChannels {
-					if status, ok := guildStatus[guild]; ok {
-						if status {
+					if connected, available := guildStatus[guild]; available {
+						if connected {
 							for _, discordChannel := range discordChannels {
 								if !discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = true
@@ -236,8 +235,8 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 			} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
 				for guild, discordChannels := range tcInfo.DiscordChannels {
-					if status, ok := guildStatus[guild]; ok {
-						if status {
+					if connected, available := guildStatus[guild]; available {
+						if connected {
 							for _, discordChannel := range discordChannels {
 								if discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = false
