@@ -74,8 +74,8 @@ func main() {
 		utils.Log.WithFields(logrus.Fields{"error": errTwitch}).Error("Could not establish connection to Twitch.")
 	}
 
-	// Start the twitch oracles
-	go twitch.StartOracles(ts, dg)
+	// Start monitoring Twitch
+	go twitch.StartMonitoring(ts, dg)
 
 	// Wait here until CTRL-C or other term signal is received.
 	utils.Log.Info("Bot is now running.")

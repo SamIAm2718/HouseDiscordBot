@@ -14,55 +14,60 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+type discordChannel struct {
+	ChannelID            string // ID of discord channel
+	LiveNotificationSent bool   // Whether or not a channel was notified of being live
+}
+
 type twitchChannelInfo struct {
-	StartTime time.Time
-	EndTime   time.Time
-	Oracles   []string
-	IsLive    bool
+	DisplayName     string                       // Twitch display name
+	StartTime       time.Time                    // Start time of stream
+	EndTime         time.Time                    // End time of stream
+	DiscordChannels map[string][]*discordChannel // Map of Discord guild IDs to discordChannel
 }
 
 type Session struct {
-	name        string
-	client      *helix.Client
-	isConnected bool
-	twitchData  map[string]*twitchChannelInfo
+	name        string                        // Name of the Twitch session
+	client      *helix.Client                 // Helix client for sending HTTP requests to twitch
+	isConnected bool                          // Status of Helix client connection to twitch
+	twitchData  map[string]*twitchChannelInfo // Map of twitch channel to its info
 }
 
-var activeOracles map[string]*Session
+// Map of Discord sessions to twitch sessions
+var activeSessions map[string]*Session
 
 func (t *Session) Close() error {
 	t.isConnected = false
 
-	return utils.WriteGobToDisk(constants.DataPath+"/"+t.name+".gob", t.twitchData)
+	return utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData)
 }
 
 func GetSession(s *discordgo.Session) *Session {
-	return activeOracles[s.State.SessionID]
+	return activeSessions[s.State.SessionID]
 }
 
-func New(id string, secret string, name string) (*Session, error) {
-	session := &Session{}
-	session.name = name
-	var err error
+func New(id string, secret string, name string) (t *Session, err error) {
+	t = &Session{}
+	t.name = name
 
-	session.client, err = helix.NewClient(&helix.Options{
+	t.client, err = helix.NewClient(&helix.Options{
 		ClientID:     id,
 		ClientSecret: secret,
 		RedirectURI:  "http://localhost",
 	})
 	if err != nil {
-		return session, err
+		return t, err
 	}
 
-	session.twitchData = make(map[string]*twitchChannelInfo)
+	t.twitchData = make(map[string]*twitchChannelInfo)
 
-	err = readGobFromDisk(constants.DataPath+"/"+session.name+".gob", &session.twitchData)
+	err = readGobFromDisk(constants.DataPath, t.name, &t.twitchData)
 	if errors.Is(err, os.ErrNotExist) {
-		utils.Log.Warn("Oracle info does not exist on disk. Will be created on shutdown.")
+		utils.Log.Warn("Twitch session info does not exist on disk. Will be created on shutdown.")
 		err = nil
 	}
 
-	return session, err
+	return t, err
 }
 
 func (t *Session) Open() error {
@@ -78,84 +83,84 @@ func (t *Session) Open() error {
 	return nil
 }
 
-func (t *Session) RegisterOracle(twitchId string, discordOracle string) (registered bool) {
+func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discordChannelID string) (registered bool) {
 
-	if t.twitchData[twitchId] == nil {
+	if t.twitchData[twitchID] == nil {
 		// if twitch channel doesn't exist, register as new channel
-		t.twitchData[twitchId] = &twitchChannelInfo{
-			IsLive:  false,
-			Oracles: []string{},
+		t.twitchData[twitchID] = &twitchChannelInfo{
+			DiscordChannels: make(map[string][]*discordChannel),
 		}
 	}
 
 	// check if twitch session contains discord oracle, register otherwise
-	if !t.containsOracle(twitchId, discordOracle) {
-		t.twitchData[twitchId].Oracles = append(t.twitchData[twitchId].Oracles, discordOracle)
+	if t.getChannelIdx(twitchID, discordGuildID, discordChannelID) < 0 {
+		dc := &discordChannel{
+			ChannelID:            discordChannelID,
+			LiveNotificationSent: false,
+		}
+		t.twitchData[twitchID].DiscordChannels[discordGuildID] = append(t.twitchData[twitchID].DiscordChannels[discordGuildID], dc)
 		return true
 	}
+
 	return false
 }
 
-func StartOracles(t *Session, s *discordgo.Session) {
+// Adds session to activeSessions and begins to monitor twitch
+func StartMonitoring(t *Session, s *discordgo.Session) {
 	if t.isConnected {
-		if activeOracles == nil {
-			activeOracles = make(map[string]*Session)
-			activeOracles[s.State.SessionID] = t
+		if activeSessions == nil {
+			activeSessions = make(map[string]*Session)
+			activeSessions[s.State.SessionID] = t
 		} else {
-			activeOracles[s.State.SessionID] = t
+			activeSessions[s.State.SessionID] = t
 		}
 
-		go monitorOracles(t, s)
+		go monitorChannels(t, s)
 	}
 }
 
-func (t *Session) UnregisterOracle(twitchId string, discordOracle string) (unregistered bool) {
-	if t.containsOracle(twitchId, discordOracle) {
-		t.twitchData[twitchId].Oracles = remove(t.twitchData[twitchId].Oracles, t.getOracleIdx(twitchId, discordOracle))
+func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, discordChannelID string) (unregistered bool) {
+	if t.getChannelIdx(twitchID, discordGuildID, discordChannelID) >= 0 {
+		t.twitchData[twitchID].DiscordChannels[discordGuildID] = remove(t.twitchData[twitchID].DiscordChannels[discordGuildID], t.getChannelIdx(twitchID, discordGuildID, discordChannelID))
+
+		// Check if no more channels in Discord server are monitoring for Twitch channel and if so delete from map
+		if len(t.twitchData[twitchID].DiscordChannels[discordGuildID]) == 0 {
+			delete(t.twitchData[twitchID].DiscordChannels, discordGuildID)
+		}
+
 		// check if Oracles are empty and if so, delete channel from twitch Session
-		if len(t.twitchData[twitchId].Oracles) == 0 {
-			utils.Log.Debugf("No more channels monitoring for %v. Stopping oracle.\n", twitchId)
-			delete(t.twitchData, twitchId)
+		if len(t.twitchData[twitchID].DiscordChannels) == 0 {
+			utils.Log.Debugf("No more channels monitoring for %v. Deleting Twitch info for %v.\n", twitchID, twitchID)
+			delete(t.twitchData, twitchID)
 		}
 		return true
 	}
 	return false
 }
 
-func (t *Session) containsOracle(c string, d string) bool {
-	if t.twitchData[c] == nil {
-		return false
-	}
-	for _, discordChannel := range t.twitchData[c].Oracles {
-		if d == discordChannel {
-			return true
-		}
-	}
-	return false
-}
-
-func (t *Session) getOracleIdx(c string, d string) int {
-	if t.twitchData[c] == nil {
+// Returns -1 if oracle isn't present or the index of the oracle if it is
+func (t *Session) getChannelIdx(twitchID string, discordGuildID string, discordChannelID string) int {
+	if t.twitchData[twitchID] == nil {
 		return -1
 	}
-	for i, discordChannel := range t.twitchData[c].Oracles {
-		if d == discordChannel {
+	for i, d := range t.twitchData[twitchID].DiscordChannels[discordGuildID] {
+		if d.ChannelID == discordChannelID {
 			return i
 		}
 	}
 	return -1
 }
 
-func monitorOracles(t *Session, s *discordgo.Session) {
-	for t.isConnected {
+func monitorChannels(ts *Session, ds *discordgo.Session) {
+	for ts.isConnected {
 		var queryChannels []string
 
-		for tc := range t.twitchData {
-			queryChannels = append(queryChannels, tc)
+		for twitchChannel := range ts.twitchData {
+			queryChannels = append(queryChannels, twitchChannel)
 		}
 
 		utils.Log.Debug("Sending query request to Twitch.")
-		resp, err := t.client.GetStreams(&helix.StreamsParams{
+		resp, err := ts.client.GetStreams(&helix.StreamsParams{
 			UserLogins: queryChannels,
 		})
 		if err != nil {
@@ -173,9 +178,10 @@ func monitorOracles(t *Session, s *discordgo.Session) {
 
 		// populate start/end time
 	OUTER:
-		for twitchChannel, tcInfo := range t.twitchData {
+		for twitchChannel, tcInfo := range ts.twitchData {
 			for _, streams := range resp.Data.Streams {
 				if streams.UserLogin == twitchChannel && streams.Type == "live" {
+					tcInfo.DisplayName = streams.UserName
 					tcInfo.StartTime = streams.StartedAt
 					tcInfo.EndTime = time.Time{}
 					continue OUTER
@@ -189,27 +195,35 @@ func monitorOracles(t *Session, s *discordgo.Session) {
 			}
 		}
 
-		for twitchChannel, tcInfo := range t.twitchData {
-			if !tcInfo.IsLive && !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
-				tcInfo.IsLive = true
-				for _, discordChannel := range tcInfo.Oracles {
-					s.ChannelMessageSend(discordChannel, twitchChannel+" is online! Watch at http://twitch.tv/"+twitchChannel)
+		for _, tcInfo := range ts.twitchData {
+			if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
+				for _, discordChannels := range tcInfo.DiscordChannels {
+					for _, discordChannel := range discordChannels {
+						if !discordChannel.LiveNotificationSent {
+							discordChannel.LiveNotificationSent = true
+							go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is online! Watch at http://twitch.tv/"+tcInfo.DisplayName)
+						}
+					}
 				}
-			} else if tcInfo.IsLive && !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
-				tcInfo.IsLive = false
-				for _, discordChannel := range tcInfo.Oracles {
-					s.ChannelMessageSend(discordChannel, twitchChannel+" is now offline!")
+			} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
+				for _, discordChannels := range tcInfo.DiscordChannels {
+					for _, discordChannel := range discordChannels {
+						if discordChannel.LiveNotificationSent {
+							discordChannel.LiveNotificationSent = false
+							go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!")
+						}
+					}
 				}
 			}
 		}
 		time.Sleep(constants.TwitchQueryInterval)
 	}
 
-	delete(activeOracles, s.State.SessionID)
+	delete(activeSessions, ds.State.SessionID)
 }
 
-func readGobFromDisk(path string, o *map[string]*twitchChannelInfo) error {
-	file, err := os.Open(path)
+func readGobFromDisk(path string, name string, o *map[string]*twitchChannelInfo) error {
+	file, err := os.Open(path + "/" + name + ".gob")
 	if err != nil {
 		return err
 	}
@@ -217,7 +231,7 @@ func readGobFromDisk(path string, o *map[string]*twitchChannelInfo) error {
 	return gob.NewDecoder(file).Decode(o)
 }
 
-func remove(s []string, i int) []string {
+func remove(s []*discordChannel, i int) []*discordChannel {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
 }
