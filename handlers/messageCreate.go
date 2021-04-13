@@ -27,8 +27,13 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(commandParams) > 0 {
 			switch commandParams[0] {
 			case "channel":
-				commandChannel(s, m, commandParams[1:])
-				return
+				if isUserMod(s, m.GuildID, m.Member) {
+					commandChannel(s, m, commandParams[1:])
+					return
+				} else {
+					utils.Log.Info("User ", m.Author.Username, " tried to issue a command without proper permissions.")
+					return
+				}
 			}
 		}
 
