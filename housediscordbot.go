@@ -69,7 +69,7 @@ func main() {
 	}
 
 	// Open a connection to twitch
-	errTwitch = ts.Open()
+	errTwitch = ts.GetAuthToken()
 	if errTwitch != nil {
 		utils.Log.WithFields(logrus.Fields{"error": errTwitch}).Error("Could not establish connection to Twitch.")
 	}

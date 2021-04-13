@@ -70,7 +70,9 @@ func New(id string, secret string, name string) (t *Session, err error) {
 	return t, err
 }
 
-func (t *Session) Open() error {
+// Attempts to use client ID and secret to get Auth token from twitch.
+// If successful then set the session state to connected.
+func (t *Session) GetAuthToken() error {
 	resp, err := t.client.RequestAppAccessToken([]string{""})
 	if err != nil {
 		return err
@@ -83,6 +85,7 @@ func (t *Session) Open() error {
 	return nil
 }
 
+// Registers a Discord Channel to monitor the live state of a twitch channel
 func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discordChannelID string) (registered bool) {
 
 	if t.twitchData[twitchID] == nil {
@@ -105,7 +108,7 @@ func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discor
 	return false
 }
 
-// Adds session to activeSessions and begins to monitor twitch
+// Adds session to activeSessions if it is connected to Twitch and begins to monitor Twitch
 func StartMonitoring(t *Session, s *discordgo.Session) {
 	if t.isConnected {
 		if activeSessions == nil {
@@ -119,6 +122,7 @@ func StartMonitoring(t *Session, s *discordgo.Session) {
 	}
 }
 
+// Unregisters a Discord Channel from monitor the live state of a Twitch channel
 func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, discordChannelID string) (unregistered bool) {
 	if t.getChannelIdx(twitchID, discordGuildID, discordChannelID) >= 0 {
 		t.twitchData[twitchID].DiscordChannels[discordGuildID] = remove(t.twitchData[twitchID].DiscordChannels[discordGuildID], t.getChannelIdx(twitchID, discordGuildID, discordChannelID))
