@@ -1,5 +1,6 @@
 package constants
 
 const (
-	Debug = false
+	Debug               = false // Must be true for any debugging to work
+	DebugTwitchResponse = false
 )

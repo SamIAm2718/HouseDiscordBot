@@ -57,7 +57,9 @@ func main() {
 
 	utils.Log.Info("Bot is starting up.")
 
+	// Register event handlers
 	dg.AddHandler(handlers.GuildCreate)
+	dg.AddHandler(handlers.GuildDelete)
 	dg.AddHandler(handlers.MessageCreate)
 
 	dg.Identify.Intents = discordgo.IntentsGuilds | discordgo.IntentsGuildMessages
@@ -69,6 +71,7 @@ func main() {
 	}
 
 	// Open a connection to twitch
+	utils.Log.Info("Establishing connection to Twitch.")
 	errTwitch = ts.GetAuthToken()
 	if errTwitch != nil {
 		utils.Log.WithFields(logrus.Fields{"error": errTwitch}).Error("Could not establish connection to Twitch.")

@@ -36,6 +36,14 @@ type Session struct {
 // Map of Discord sessions to twitch sessions
 var activeSessions map[string]*Session
 
+// Map of Guild ID to status of guild connection
+var guildStatus map[string]bool
+
+func init() {
+	activeSessions = make(map[string]*Session)
+	guildStatus = make(map[string]bool)
+}
+
 func (t *Session) Close() error {
 	t.isConnected = false
 
@@ -108,15 +116,25 @@ func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discor
 	return false
 }
 
+// Sets the current guild as active
+func SetGuildActive(guildID string) {
+	guildStatus[guildID] = true
+}
+
+// Sets the current guild as inactive
+func SetGuildInactive(guildID string) {
+	guildStatus[guildID] = false
+}
+
+// Sets current guild as unavailable
+func SetGuildUnavailable(guildID string) {
+	delete(guildStatus, guildID)
+}
+
 // Adds session to activeSessions if it is connected to Twitch and begins to monitor Twitch
 func StartMonitoring(t *Session, s *discordgo.Session) {
 	if t.isConnected {
-		if activeSessions == nil {
-			activeSessions = make(map[string]*Session)
-			activeSessions[s.State.SessionID] = t
-		} else {
-			activeSessions[s.State.SessionID] = t
-		}
+		activeSessions[s.State.SessionID] = t
 
 		go monitorChannels(t, s)
 	}
@@ -163,7 +181,10 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 			queryChannels = append(queryChannels, twitchChannel)
 		}
 
-		utils.Log.Debug("Sending query request to Twitch.")
+		if constants.DebugTwitchResponse {
+			utils.Log.Debug("Sending query request to Twitch.")
+		}
+
 		resp, err := ts.client.GetStreams(&helix.StreamsParams{
 			UserLogins: queryChannels,
 		})
@@ -171,7 +192,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
 		}
 
-		if constants.Debug {
+		if constants.DebugTwitchResponse {
 			empJSON, err := json.MarshalIndent(resp.Data.Streams, "", "  ")
 			if err != nil {
 				utils.Log.WithFields(logrus.Fields{"error": err}).Debug("Error marshaling Twitch JSON response.")
@@ -201,20 +222,28 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 
 		for _, tcInfo := range ts.twitchData {
 			if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
-				for _, discordChannels := range tcInfo.DiscordChannels {
-					for _, discordChannel := range discordChannels {
-						if !discordChannel.LiveNotificationSent {
-							discordChannel.LiveNotificationSent = true
-							go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is online! Watch at http://twitch.tv/"+tcInfo.DisplayName)
+				for guild, discordChannels := range tcInfo.DiscordChannels {
+					if status, ok := guildStatus[guild]; ok {
+						if status {
+							for _, discordChannel := range discordChannels {
+								if !discordChannel.LiveNotificationSent {
+									discordChannel.LiveNotificationSent = true
+									go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is online! Watch at http://twitch.tv/"+tcInfo.DisplayName)
+								}
+							}
 						}
 					}
 				}
 			} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
-				for _, discordChannels := range tcInfo.DiscordChannels {
-					for _, discordChannel := range discordChannels {
-						if discordChannel.LiveNotificationSent {
-							discordChannel.LiveNotificationSent = false
-							go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!")
+				for guild, discordChannels := range tcInfo.DiscordChannels {
+					if status, ok := guildStatus[guild]; ok {
+						if status {
+							for _, discordChannel := range discordChannels {
+								if discordChannel.LiveNotificationSent {
+									discordChannel.LiveNotificationSent = false
+									go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!")
+								}
+							}
 						}
 					}
 				}

@@ -6,13 +6,13 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-func GuildCreate(s *discordgo.Session, event *discordgo.GuildCreate) {
+func GuildDelete(s *discordgo.Session, event *discordgo.GuildDelete) {
 	if event.Guild.Unavailable {
 		utils.Log.Debugf("Guild %v is unavailable.\n", event.ID)
 		twitch.SetGuildUnavailable(event.ID)
 		return
 	}
 
-	utils.Log.Debugf("Connected to guild %v.\n", event.ID)
-	twitch.SetGuildActive(event.ID)
+	utils.Log.Debugf("Removed from guild %v.\n", event.ID)
+	twitch.SetGuildInactive(event.ID)
 }
