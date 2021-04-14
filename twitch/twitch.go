@@ -189,6 +189,8 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 		})
 		if err != nil {
 			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
+			ts.isConnected = false
+			continue
 		}
 
 		if constants.DebugTwitchResponse {

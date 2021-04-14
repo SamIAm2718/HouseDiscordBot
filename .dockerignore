@@ -1,4 +1,5 @@
-*.md
-*.yaml
-*.log
-*.gob
+**/*.md
+**/*.yaml
+**/*.log
+**/*.gob
+.*
