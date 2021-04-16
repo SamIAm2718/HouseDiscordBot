@@ -27,8 +27,13 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(commandParams) > 0 {
 			switch commandParams[0] {
 			case "channel":
-				commandChannel(s, m, commandParams[1:])
-				return
+				if isUserMod(s, m.GuildID, m.Member) {
+					commandChannel(s, m, commandParams[1:])
+					return
+				} else {
+					utils.Log.Info("User ", m.Author.Username, " tried to issue a command without proper permissions.")
+					return
+				}
 			}
 		}
 
@@ -47,38 +52,53 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 			t := twitch.GetSession(s)
 			twitchChannel := strings.ToLower(c[1])
 
-			if t.RegisterOracle(twitchChannel, m.ChannelID) {
+			if t.RegisterChannel(twitchChannel, m.GuildID, m.ChannelID) {
 				utils.Log.WithFields(logrus.Fields{
 					"user":           m.Author.Username,
 					"twitch_channel": twitchChannel,
 					"channel_id":     m.ChannelID,
-					"server_id":      m.GuildID}).Info("Registered oracle.")
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully registered to this Discord channel.")
+					"server_id":      m.GuildID}).Info("Succeeded in registering channel.")
+
+				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully added to this Discord channel.")
 				if err != nil {
 					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
 				}
 			} else {
-				s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already registered to this Discord channel.")
+				utils.Log.WithFields(logrus.Fields{
+					"user":           m.Author.Username,
+					"twitch_channel": twitchChannel,
+					"channel_id":     m.ChannelID,
+					"server_id":      m.GuildID}).Info("Failed to register channel.")
+
+				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
+				if err != nil {
+					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+				}
 			}
 			return
 		case "remove":
 			t := twitch.GetSession(s)
 			twitchChannel := strings.ToLower(c[1])
 
-			if t.UnregisterOracle(twitchChannel, m.ChannelID) {
+			if t.UnregisterChannel(twitchChannel, m.GuildID, m.ChannelID) {
 				utils.Log.WithFields(logrus.Fields{
 					"user":           m.Author.Username,
 					"twitch_channel": twitchChannel,
 					"channel_id":     m.ChannelID,
-					"server_id":      m.GuildID}).Info("Unregistered oracle.")
+					"server_id":      m.GuildID}).Info("Succeeded in unregistering channel.")
 
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully unregistered from this Discord channel.")
+				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully removed from this Discord channel.")
 				if err != nil {
 					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
 				}
 			} else {
+				utils.Log.WithFields(logrus.Fields{
+					"user":           m.Author.Username,
+					"twitch_channel": twitchChannel,
+					"channel_id":     m.ChannelID,
+					"server_id":      m.GuildID}).Info("Failed to unregister channel.")
 
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is not registered to this Discord channel.")
+				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is not added to this Discord channel.")
 				if err != nil {
 					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
 				}
