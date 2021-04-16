@@ -21,6 +21,9 @@ type discordChannel struct {
 
 type twitchChannelInfo struct {
 	DisplayName     string                       // Twitch display name
+	StreamTitle     string                       // Title of stream
+	GameID          string                       // Game title being streamed
+	ThumbnailURL    string                       // URL of thumbnail
 	StartTime       time.Time                    // Start time of stream
 	EndTime         time.Time                    // End time of stream
 	DiscordChannels map[string][]*discordChannel // Map of Discord guild IDs to discordChannel
@@ -45,6 +48,14 @@ func init() {
 
 func (t *Session) Close() error {
 	t.isConnected = false
+
+	for _, tcInfo := range t.twitchData {
+		for gID, status := range guildStatus {
+			if !status {
+				delete(tcInfo.DiscordChannels, gID)
+			}
+		}
+	}
 
 	return utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData)
 }
@@ -109,6 +120,12 @@ func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discor
 			LiveNotificationSent: false,
 		}
 		t.twitchData[twitchID].DiscordChannels[discordGuildID] = append(t.twitchData[twitchID].DiscordChannels[discordGuildID], dc)
+
+		// Writes the data to the disk in case of crash
+		if err := utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData); err != nil {
+			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Error writing data to disk.")
+		}
+
 		return true
 	}
 
@@ -141,8 +158,8 @@ func StartMonitoring(t *Session, s *discordgo.Session) {
 
 // Unregisters a Discord Channel from monitor the live state of a Twitch channel
 func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, discordChannelID string) (unregistered bool) {
-	if t.getChannelIdx(twitchID, discordGuildID, discordChannelID) >= 0 {
-		t.twitchData[twitchID].DiscordChannels[discordGuildID] = remove(t.twitchData[twitchID].DiscordChannels[discordGuildID], t.getChannelIdx(twitchID, discordGuildID, discordChannelID))
+	if channelIdx := t.getChannelIdx(twitchID, discordGuildID, discordChannelID); channelIdx >= 0 {
+		t.twitchData[twitchID].DiscordChannels[discordGuildID] = remove(t.twitchData[twitchID].DiscordChannels[discordGuildID], channelIdx)
 
 		// Check if no more channels in Discord server are monitoring for Twitch channel and if so delete from map
 		if len(t.twitchData[twitchID].DiscordChannels[discordGuildID]) == 0 {
@@ -154,6 +171,12 @@ func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, disc
 			utils.Log.Debugf("No more channels monitoring for %v. Deleting Twitch info for %v.\n", twitchID, twitchID)
 			delete(t.twitchData, twitchID)
 		}
+
+		// Writes the data to the disk in case of crash
+		if err := utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData); err != nil {
+			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Error writing data to disk.")
+		}
+
 		return true
 	}
 	return false
@@ -174,58 +197,71 @@ func (t *Session) getChannelIdx(twitchID string, discordGuildID string, discordC
 
 func monitorChannels(ts *Session, ds *discordgo.Session) {
 	for ts.isConnected {
-		var queryChannels []string
-
-		for twitchChannel := range ts.twitchData {
-			queryChannels = append(queryChannels, twitchChannel)
-		}
-
-		if constants.DebugTwitchResponse {
-			utils.Log.Debug("Sending query request to Twitch.")
-		}
-
-		resp, err := ts.client.GetStreams(&helix.StreamsParams{
-			UserLogins: queryChannels,
-		})
-		if err != nil {
-			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
+		// Validate and refresh Twitch authorization token, if token valuid
+		if isValid, valResp, err := ts.client.ValidateToken(ts.client.GetAppAccessToken()); err != nil {
+			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to validate Twitch authorization token.")
+		} else if !isValid {
 			ts.isConnected = false
-			continue
-		}
-
-		if constants.DebugTwitchResponse {
-			empJSON, err := json.MarshalIndent(resp.Data.Streams, "", "  ")
-			if err != nil {
-				utils.Log.WithFields(logrus.Fields{"error": err}).Debug("Error marshaling Twitch JSON response.")
-			} else {
-				utils.Log.Debugf("Twitch Response: %+v\n", string(empJSON))
-			}
-		}
-
-		// populate start/end time
-	OUTER:
-		for twitchChannel, tcInfo := range ts.twitchData {
-			for _, streams := range resp.Data.Streams {
-				if streams.UserLogin == twitchChannel && streams.Type == "live" {
-					tcInfo.DisplayName = streams.UserName
-					tcInfo.StartTime = streams.StartedAt
-					tcInfo.EndTime = time.Time{}
-					continue OUTER
+			for !ts.isConnected {
+				utils.Log.Debug("Attempting to get new Twitch authentication token.")
+				if ts.GetAuthToken() != nil {
+					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to get new Twitch authorization token.")
+					break
 				}
 			}
 
-			// stream not found, update times
-			tcInfo.StartTime = time.Time{}
-			if tcInfo.EndTime.IsZero() {
-				tcInfo.EndTime = time.Now()
+			if ts.isConnected {
+				utils.Log.Debug("Successfully got new Twitch authentication token.")
 			}
-		}
+		} else if valResp.StatusCode == 200 {
+			var queryChannels []string
 
-		for _, tcInfo := range ts.twitchData {
-			if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
-				for guild, discordChannels := range tcInfo.DiscordChannels {
-					if connected, available := guildStatus[guild]; available {
-						if connected {
+			for twitchChannel := range ts.twitchData {
+				queryChannels = append(queryChannels, twitchChannel)
+			}
+
+			resp, err := ts.client.GetStreams(&helix.StreamsParams{
+				UserLogins: queryChannels,
+			})
+			if err != nil {
+				utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
+			}
+
+			if constants.DebugTwitchResponse {
+				empJSON, err := json.MarshalIndent(resp, "", "  ")
+				if err != nil {
+					utils.Log.WithFields(logrus.Fields{"error": err}).Debug("Error marshaling Twitch JSON response.")
+				} else {
+					utils.Log.Debugf("Twitch getStreams request Response: %+v\n", string(empJSON))
+				}
+			}
+
+			// populate start/end time
+		OUTER:
+			for twitchChannel, tcInfo := range ts.twitchData {
+				for _, streams := range resp.Data.Streams {
+					if streams.UserLogin == twitchChannel && streams.Type == "live" {
+						tcInfo.DisplayName = streams.UserName
+						tcInfo.StreamTitle = streams.Title
+						tcInfo.GameID = streams.GameID
+						tcInfo.ThumbnailURL = streams.ThumbnailURL
+						tcInfo.StartTime = streams.StartedAt
+						tcInfo.EndTime = time.Time{}
+						continue OUTER
+					}
+				}
+
+				// stream not found, update times
+				tcInfo.StartTime = time.Time{}
+				if tcInfo.EndTime.IsZero() {
+					tcInfo.EndTime = time.Now()
+				}
+			}
+
+			for _, tcInfo := range ts.twitchData {
+				if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
+					for guild, discordChannels := range tcInfo.DiscordChannels {
+						if connected, available := guildStatus[guild]; available && connected {
 							for _, discordChannel := range discordChannels {
 								if !discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = true
@@ -234,11 +270,9 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 							}
 						}
 					}
-				}
-			} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
-				for guild, discordChannels := range tcInfo.DiscordChannels {
-					if connected, available := guildStatus[guild]; available {
-						if connected {
+				} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
+					for guild, discordChannels := range tcInfo.DiscordChannels {
+						if connected, available := guildStatus[guild]; available && connected {
 							for _, discordChannel := range discordChannels {
 								if discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = false
@@ -249,7 +283,10 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 					}
 				}
 			}
+		} else {
+			utils.Log.WithFields(logrus.Fields{"StatusCode": valResp.StatusCode}).Error("HTTP Error returned from twitch.")
 		}
+
 		time.Sleep(constants.TwitchQueryInterval)
 	}
 
@@ -257,12 +294,11 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 }
 
 func readGobFromDisk(path string, name string, o *map[string]*twitchChannelInfo) error {
-	file, err := os.Open(path + "/" + name + ".gob")
-	if err != nil {
+	if file, err := os.Open(path + "/" + name + ".gob"); err != nil {
 		return err
+	} else {
+		return gob.NewDecoder(file).Decode(o)
 	}
-
-	return gob.NewDecoder(file).Decode(o)
 }
 
 func remove(s []*discordChannel, i int) []*discordChannel {
