@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"errors"
 	"strings"
 
+	"github.com/SamIAm2718/HouseDiscordBot/constants"
 	"github.com/SamIAm2718/HouseDiscordBot/twitch"
 	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
@@ -52,7 +54,31 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 			t := twitch.GetSession(s)
 			twitchChannel := strings.ToLower(c[1])
 
-			if t.RegisterChannel(twitchChannel, m.GuildID, m.ChannelID) {
+			if err := t.RegisterChannel(twitchChannel, m.GuildID, m.ChannelID); err != nil {
+				utils.Log.WithFields(logrus.Fields{
+					"user":           m.Author.Username,
+					"twitch_channel": twitchChannel,
+					"channel_id":     m.ChannelID,
+					"server_id":      m.GuildID,
+					"error":          err}).Info("Failed to register channel.")
+
+				if errors.Is(err, constants.ErrTwitchUserDoesNotExist) {
+					_, err := s.ChannelMessageSend(m.ChannelID, "The Twitch channel "+twitchChannel+" does not exist.")
+					if err != nil {
+						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					}
+				} else if errors.Is(err, constants.ErrTwitchUserRegistered) {
+					_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
+					if err != nil {
+						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					}
+				} else {
+					_, err := s.ChannelMessageSend(m.ChannelID, "Error registering channel. Connection to twitch may be down.")
+					if err != nil {
+						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					}
+				}
+			} else {
 				utils.Log.WithFields(logrus.Fields{
 					"user":           m.Author.Username,
 					"twitch_channel": twitchChannel,
@@ -60,17 +86,6 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"server_id":      m.GuildID}).Info("Succeeded in registering channel.")
 
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully added to this Discord channel.")
-				if err != nil {
-					utils.Log.WithError(err).Error("Failed to send message to Discord.")
-				}
-			} else {
-				utils.Log.WithFields(logrus.Fields{
-					"user":           m.Author.Username,
-					"twitch_channel": twitchChannel,
-					"channel_id":     m.ChannelID,
-					"server_id":      m.GuildID}).Info("Failed to register channel.")
-
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
 				if err != nil {
 					utils.Log.WithError(err).Error("Failed to send message to Discord.")
 				}

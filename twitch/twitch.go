@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
@@ -20,6 +21,7 @@ type discordChannel struct {
 
 type twitchChannelInfo struct {
 	DisplayName     string                       // Twitch display name
+	LogoURL         string                       // URL of Twitch logo
 	StreamTitle     string                       // Title of stream
 	GameID          string                       // Game title being streamed
 	ThumbnailURL    string                       // URL of thumbnail
@@ -94,7 +96,7 @@ func (t *Session) GetAuthToken() error {
 	if err != nil {
 		return err
 	} else if resp.Data.AccessToken == "" {
-		return errors.New("failed to get access token")
+		return constants.ErrEmptyAccessToken
 	}
 	t.client.SetAppAccessToken(resp.Data.AccessToken)
 	t.isConnected = true
@@ -103,12 +105,29 @@ func (t *Session) GetAuthToken() error {
 }
 
 // Registers a Discord Channel to monitor the live state of a twitch channel
-func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discordChannelID string) (registered bool) {
-
+func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discordChannelID string) (registered error) {
+	// if twitch channel doesn't exist, register as new channel
 	if t.twitchData[twitchID] == nil {
-		// if twitch channel doesn't exist, register as new channel
-		t.twitchData[twitchID] = &twitchChannelInfo{
-			DiscordChannels: make(map[string][]*discordChannel),
+
+		// we need to obtain the profile picture url and display name for the twitch channel
+		if validateAndRefreshAuthToken(t) {
+			resp, err := t.client.GetUsers(&helix.UsersParams{Logins: []string{twitchID}})
+			if err != nil {
+				utils.Log.WithError(err).Error("Failed to query twitch.")
+			}
+
+			if len(resp.Data.Users) == 0 {
+				return constants.ErrTwitchUserDoesNotExist
+			}
+
+			// register the twitch information channel
+			t.twitchData[twitchID] = &twitchChannelInfo{
+				DisplayName:     resp.Data.Users[0].DisplayName,
+				LogoURL:         resp.Data.Users[0].ProfileImageURL,
+				DiscordChannels: make(map[string][]*discordChannel),
+			}
+		} else {
+			return constants.ErrInvalidToken
 		}
 	}
 
@@ -125,10 +144,10 @@ func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discor
 			utils.Log.WithError(err).Error("Error writing data to disk.")
 		}
 
-		return true
+		return nil
 	}
 
-	return false
+	return constants.ErrTwitchUserRegistered
 }
 
 // Sets the current guild as active
@@ -181,6 +200,33 @@ func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, disc
 	return false
 }
 
+func createDiscordEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
+	embed := discordgo.MessageEmbed{
+		URL:         "https://www.twitch.tv/" + t.DisplayName,
+		Type:        "",
+		Title:       t.StreamTitle,
+		Description: "",
+		Timestamp:   "",
+		Color:       0x808080,
+		Footer:      &discordgo.MessageEmbedFooter{},
+		Image: &discordgo.MessageEmbedImage{
+			URL:      strings.Replace(strings.Replace(t.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
+			ProxyURL: "",
+			Width:    1920,
+			Height:   1080},
+		Thumbnail: &discordgo.MessageEmbedThumbnail{},
+		Video:     &discordgo.MessageEmbedVideo{},
+		Provider:  &discordgo.MessageEmbedProvider{},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    t.DisplayName,
+			IconURL: t.LogoURL,
+		},
+		Fields: []*discordgo.MessageEmbedField{},
+	}
+
+	return &embed
+}
+
 // Returns -1 if oracle isn't present or the index of the oracle if it is
 func (t *Session) getChannelIdx(twitchID string, discordGuildID string, discordChannelID string) int {
 	if t.twitchData[twitchID] == nil {
@@ -196,23 +242,7 @@ func (t *Session) getChannelIdx(twitchID string, discordGuildID string, discordC
 
 func monitorChannels(ts *Session, ds *discordgo.Session) {
 	for ts.isConnected {
-		// Validate and refresh Twitch authorization token, if token valuid
-		if isValid, valResp, err := ts.client.ValidateToken(ts.client.GetAppAccessToken()); err != nil {
-			utils.Log.WithError(err).Error("Failed to validate Twitch authorization token.")
-		} else if !isValid {
-			ts.isConnected = false
-			for !ts.isConnected {
-				utils.Log.Debug("Attempting to get new Twitch authentication token.")
-				if ts.GetAuthToken() != nil {
-					utils.Log.WithError(err).Error("Failed to get new Twitch authorization token.")
-					break
-				}
-			}
-
-			if ts.isConnected {
-				utils.Log.Debug("Successfully got new Twitch authentication token.")
-			}
-		} else if valResp.StatusCode == 200 {
+		if validateAndRefreshAuthToken(ts) {
 			var queryChannels []string
 
 			for twitchChannel := range ts.twitchData {
@@ -240,7 +270,6 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 			for twitchChannel, tcInfo := range ts.twitchData {
 				for _, streams := range resp.Data.Streams {
 					if streams.UserLogin == twitchChannel && streams.Type == "live" {
-						tcInfo.DisplayName = streams.UserName
 						tcInfo.StreamTitle = streams.Title
 						tcInfo.GameID = streams.GameID
 						tcInfo.ThumbnailURL = streams.ThumbnailURL
@@ -264,7 +293,11 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 							for _, discordChannel := range discordChannels {
 								if !discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = true
-									go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is online! Watch at http://twitch.tv/"+tcInfo.DisplayName)
+									go func() {
+										if _, err := ds.ChannelMessageSendEmbed(discordChannel.ChannelID, createDiscordEmbedMessage(tcInfo)); err != nil {
+											utils.Log.WithError(err).Debug("Error sending message to discord.")
+										}
+									}()
 								}
 							}
 						}
@@ -275,15 +308,17 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 							for _, discordChannel := range discordChannels {
 								if discordChannel.LiveNotificationSent {
 									discordChannel.LiveNotificationSent = false
-									go ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!")
+									go func() {
+										if _, err := ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!"); err != nil {
+											utils.Log.WithError(err).Debug("Error sending message to discord.")
+										}
+									}()
 								}
 							}
 						}
 					}
 				}
 			}
-		} else {
-			utils.Log.WithField("StatusCode", valResp.StatusCode).Error("HTTP Error returned from twitch.")
 		}
 
 		time.Sleep(constants.TwitchQueryInterval)
@@ -303,4 +338,31 @@ func readGobFromDisk(path string, name string, o *map[string]*twitchChannelInfo)
 func remove(s []*discordChannel, i int) []*discordChannel {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+func validateAndRefreshAuthToken(ts *Session) bool {
+	// Validate and refresh Twitch authorization token, if token valid
+	if isValid, resp, err := ts.client.ValidateToken(ts.client.GetAppAccessToken()); err != nil {
+		utils.Log.WithError(err).Error("Failed to validate Twitch authorization token.")
+	} else if !isValid {
+		ts.isConnected = false
+		for !ts.isConnected {
+			utils.Log.Debug("Attempting to get new Twitch authentication token.")
+			if ts.GetAuthToken() != nil {
+				utils.Log.WithError(err).Error("Failed to get new Twitch authorization token.")
+				break
+			}
+		}
+
+		if ts.isConnected {
+			utils.Log.Debug("Successfully got new Twitch authentication token.")
+			return true
+		}
+	} else if resp.StatusCode != 200 {
+		utils.Log.WithField("StatusCode", resp.StatusCode).Error("HTTP Error returned from twitch.")
+	} else {
+		return true
+	}
+
+	return false
 }
