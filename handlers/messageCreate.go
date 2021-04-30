@@ -61,7 +61,7 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully added to this Discord channel.")
 				if err != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+					utils.Log.WithError(err).Error("Failed to send message to Discord.")
 				}
 			} else {
 				utils.Log.WithFields(logrus.Fields{
@@ -72,7 +72,7 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
 				if err != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+					utils.Log.WithError(err).Error("Failed to send message to Discord.")
 				}
 			}
 			return
@@ -89,7 +89,7 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully removed from this Discord channel.")
 				if err != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+					utils.Log.WithError(err).Error("Failed to send message to Discord.")
 				}
 			} else {
 				utils.Log.WithFields(logrus.Fields{
@@ -100,7 +100,7 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 
 				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is not added to this Discord channel.")
 				if err != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+					utils.Log.WithError(err).Error("Failed to send message to Discord.")
 				}
 
 			}
@@ -111,6 +111,6 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 
 	_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is housebot channel [add/remove] <Twitch Channel>")
 	if err != nil {
-		utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to send message to Discord.")
+		utils.Log.WithError(err).Error("Failed to send message to Discord.")
 	}
 }

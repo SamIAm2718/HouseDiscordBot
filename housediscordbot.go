@@ -10,7 +10,6 @@ import (
 	"github.com/SamIAm2718/HouseDiscordBot/twitch"
 	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
-	"github.com/sirupsen/logrus"
 )
 
 // Variables used for command line parameters
@@ -33,7 +32,7 @@ func init() {
 	} else if len(tokenPath) > 0 {
 		rawToken, err := os.ReadFile(tokenPath)
 		if err != nil {
-			utils.Log.WithFields(logrus.Fields{"error": err}).Fatal("Token file could not be read")
+			utils.Log.WithError(err).Fatal("Token file could not be read")
 		}
 		token = string(rawToken)
 	} else {
@@ -46,13 +45,13 @@ func main() {
 	// Create a new Discord session using the provided bot token.
 	dg, errDiscord := discordgo.New("Bot " + token)
 	if errDiscord != nil {
-		utils.Log.WithFields(logrus.Fields{"error": errDiscord}).Fatal("Discord session could not be created.")
+		utils.Log.WithError(errDiscord).Fatal("Discord session could not be created.")
 	}
 
 	// Create a new Twitch session with client id, secret, and a path to saved data
 	ts, errTwitch := twitch.New(os.Getenv("TWITCH_CLIENT_ID"), os.Getenv("TWITCH_CLIENT_SECRET"), "session1")
 	if errTwitch != nil {
-		utils.Log.WithFields(logrus.Fields{"error": errTwitch}).Error("Twitch session could not be created.")
+		utils.Log.WithError(errTwitch).Error("Twitch session could not be created.")
 	}
 
 	utils.Log.Info("Bot is starting up.")
@@ -67,14 +66,14 @@ func main() {
 	// Open a websocket connection to Discord and begin listening.
 	errDiscord = dg.Open()
 	if errDiscord != nil {
-		utils.Log.WithFields(logrus.Fields{"error": errDiscord}).Fatal("Could not establish connection to Discord.")
+		utils.Log.WithError(errDiscord).Fatal("Could not establish connection to Discord.")
 	}
 
 	// Open a connection to twitch
 	utils.Log.Info("Establishing connection to Twitch.")
 	errTwitch = ts.GetAuthToken()
 	if errTwitch != nil {
-		utils.Log.WithFields(logrus.Fields{"error": errTwitch}).Error("Could not establish connection to Twitch.")
+		utils.Log.WithError(errTwitch).Error("Could not establish connection to Twitch.")
 	}
 
 	// Start monitoring Twitch

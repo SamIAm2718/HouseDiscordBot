@@ -16,8 +16,7 @@ var (
 func init() {
 	Log = logrus.New()
 
-	var logLevel = logrus.InfoLevel
-
+	logLevel := logrus.InfoLevel
 	if constants.Debug {
 		logLevel = logrus.DebugLevel
 	}
@@ -32,9 +31,8 @@ func init() {
 			TimestampFormat: time.RFC822,
 		},
 	})
-
 	if err != nil {
-		logrus.Fatalf("Failed to initialize file rotate hook: %v", err)
+		logrus.WithError(err).Fatalf("Failed to initialize file rotate hook.")
 	}
 
 	Log.SetLevel(logLevel)

@@ -7,7 +7,6 @@ import (
 )
 
 func WriteGobToDisk(path string, name string, o interface{}) error {
-
 	//check if file exists and if not creates a directory for it
 	if _, err := os.Stat(path + "/" + name + ".gob"); errors.Is(err, os.ErrNotExist) {
 		if err := os.MkdirAll(path, 0755); err != nil {

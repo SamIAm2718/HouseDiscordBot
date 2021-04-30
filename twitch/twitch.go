@@ -11,7 +11,6 @@ import (
 	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
 	"github.com/nicklaw5/helix"
-	"github.com/sirupsen/logrus"
 )
 
 type discordChannel struct {
@@ -123,7 +122,7 @@ func (t *Session) RegisterChannel(twitchID string, discordGuildID string, discor
 
 		// Writes the data to the disk in case of crash
 		if err := utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData); err != nil {
-			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Error writing data to disk.")
+			utils.Log.WithError(err).Error("Error writing data to disk.")
 		}
 
 		return true
@@ -174,7 +173,7 @@ func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, disc
 
 		// Writes the data to the disk in case of crash
 		if err := utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData); err != nil {
-			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Error writing data to disk.")
+			utils.Log.WithError(err).Error("Error writing data to disk.")
 		}
 
 		return true
@@ -199,13 +198,13 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 	for ts.isConnected {
 		// Validate and refresh Twitch authorization token, if token valuid
 		if isValid, valResp, err := ts.client.ValidateToken(ts.client.GetAppAccessToken()); err != nil {
-			utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to validate Twitch authorization token.")
+			utils.Log.WithError(err).Error("Failed to validate Twitch authorization token.")
 		} else if !isValid {
 			ts.isConnected = false
 			for !ts.isConnected {
 				utils.Log.Debug("Attempting to get new Twitch authentication token.")
 				if ts.GetAuthToken() != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to get new Twitch authorization token.")
+					utils.Log.WithError(err).Error("Failed to get new Twitch authorization token.")
 					break
 				}
 			}
@@ -224,13 +223,13 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				UserLogins: queryChannels,
 			})
 			if err != nil {
-				utils.Log.WithFields(logrus.Fields{"error": err}).Error("Failed to query twitch.")
+				utils.Log.WithError(err).Error("Failed to query twitch.")
 			}
 
 			if constants.DebugTwitchResponse {
 				empJSON, err := json.MarshalIndent(resp, "", "  ")
 				if err != nil {
-					utils.Log.WithFields(logrus.Fields{"error": err}).Debug("Error marshaling Twitch JSON response.")
+					utils.Log.WithError(err).Debug("Error marshaling Twitch JSON response.")
 				} else {
 					utils.Log.Debugf("Twitch getStreams request Response: %+v\n", string(empJSON))
 				}
@@ -284,7 +283,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 			}
 		} else {
-			utils.Log.WithFields(logrus.Fields{"StatusCode": valResp.StatusCode}).Error("HTTP Error returned from twitch.")
+			utils.Log.WithField("StatusCode", valResp.StatusCode).Error("HTTP Error returned from twitch.")
 		}
 
 		time.Sleep(constants.TwitchQueryInterval)
