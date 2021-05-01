@@ -265,7 +265,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 			}
 
-			// populate start/end time
+			// populate twitch info start/end time
 		OUTER:
 			for twitchChannel, tcInfo := range ts.twitchData {
 				for _, streams := range resp.Data.Streams {
@@ -286,39 +286,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 			}
 
-			for _, tcInfo := range ts.twitchData {
-				if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
-					for guild, discordChannels := range tcInfo.DiscordChannels {
-						if connected, available := guildStatus[guild]; available && connected {
-							for _, discordChannel := range discordChannels {
-								if !discordChannel.LiveNotificationSent {
-									discordChannel.LiveNotificationSent = true
-									go func() {
-										if _, err := ds.ChannelMessageSendEmbed(discordChannel.ChannelID, createDiscordEmbedMessage(tcInfo)); err != nil {
-											utils.Log.WithError(err).Debug("Error sending message to discord.")
-										}
-									}()
-								}
-							}
-						}
-					}
-				} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
-					for guild, discordChannels := range tcInfo.DiscordChannels {
-						if connected, available := guildStatus[guild]; available && connected {
-							for _, discordChannel := range discordChannels {
-								if discordChannel.LiveNotificationSent {
-									discordChannel.LiveNotificationSent = false
-									go func() {
-										if _, err := ds.ChannelMessageSend(discordChannel.ChannelID, tcInfo.DisplayName+" is now offline!"); err != nil {
-											utils.Log.WithError(err).Debug("Error sending message to discord.")
-										}
-									}()
-								}
-							}
-						}
-					}
-				}
-			}
+			sendNotifications(ts, ds)
 		}
 
 		time.Sleep(constants.TwitchQueryInterval)
@@ -338,6 +306,46 @@ func readGobFromDisk(path string, name string, o *map[string]*twitchChannelInfo)
 func remove(s []*discordChannel, i int) []*discordChannel {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
+}
+
+func sendNotifications(ts *Session, ds *discordgo.Session) {
+	for _, tcInfo := range ts.twitchData {
+		if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
+			for guild, discordChannels := range tcInfo.DiscordChannels {
+				if connected, available := guildStatus[guild]; available && connected {
+					for _, discordChannel := range discordChannels {
+						if !discordChannel.LiveNotificationSent {
+							discordChannel.LiveNotificationSent = true
+							go sendLiveNotification(ds, discordChannel, tcInfo)
+						}
+					}
+				}
+			}
+		} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
+			for guild, discordChannels := range tcInfo.DiscordChannels {
+				if connected, available := guildStatus[guild]; available && connected {
+					for _, discordChannel := range discordChannels {
+						if discordChannel.LiveNotificationSent {
+							discordChannel.LiveNotificationSent = false
+							go sendOfflineNotification(ds, discordChannel, tcInfo)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
+	if _, err := ds.ChannelMessageSendEmbed(dc.ChannelID, createDiscordEmbedMessage(tci)); err != nil {
+		utils.Log.WithError(err).Debug("Error sending message to discord.")
+	}
+}
+
+func sendOfflineNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
+	if _, err := ds.ChannelMessageSend(dc.ChannelID, tci.DisplayName+" is now offline!"); err != nil {
+		utils.Log.WithError(err).Debug("Error sending message to discord.")
+	}
 }
 
 func validateAndRefreshAuthToken(ts *Session) bool {
