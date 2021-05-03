@@ -4,6 +4,7 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -15,16 +16,16 @@ import (
 )
 
 type discordChannel struct {
-	ChannelID            string // ID of discord channel
-	LiveNotificationSent bool   // Whether or not a channel was notified of being live
+	ChannelID            string    // ID of discord channel
+	LiveMessageID        string    // ID of LiveMessage
+	UpdateTime           time.Time // Time the message was last updated
+	LiveNotificationSent bool      // Whether or not a channel was notified of being live
 }
 
 type twitchChannelInfo struct {
 	DisplayName     string                       // Twitch display name
 	LogoURL         string                       // URL of Twitch logo
-	StreamTitle     string                       // Title of stream
-	GameID          string                       // Game title being streamed
-	ThumbnailURL    string                       // URL of thumbnail
+	StreamData      *helix.Stream                // Stream response sent by twitch
 	StartTime       time.Time                    // Start time of stream
 	EndTime         time.Time                    // End time of stream
 	DiscordChannels map[string][]*discordChannel // Map of Discord guild IDs to discordChannel
@@ -217,31 +218,99 @@ func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, disc
 	return false
 }
 
-func createDiscordEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
-	embed := discordgo.MessageEmbed{
-		URL:         "https://www.twitch.tv/" + t.DisplayName,
-		Type:        "",
-		Title:       t.StreamTitle,
-		Description: "",
-		Timestamp:   "",
-		Color:       0x808080,
-		Footer:      &discordgo.MessageEmbedFooter{},
-		Image: &discordgo.MessageEmbedImage{
-			URL:      strings.Replace(strings.Replace(t.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
-			ProxyURL: "",
-			Width:    1920,
-			Height:   1080},
+func createDiscordLiveEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
+	var embed *discordgo.MessageEmbed
+	if t.StreamData.GameName != "" {
+		embed = &discordgo.MessageEmbed{
+			URL:         "https://www.twitch.tv/" + t.DisplayName,
+			Type:        "",
+			Title:       t.StreamData.Title,
+			Description: "",
+			Timestamp:   "",
+			Color:       0x808080,
+			Footer:      &discordgo.MessageEmbedFooter{},
+			Image: &discordgo.MessageEmbedImage{
+				URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
+				ProxyURL: "",
+				Width:    1920,
+				Height:   1080},
+			Thumbnail: &discordgo.MessageEmbedThumbnail{},
+			Video:     &discordgo.MessageEmbedVideo{},
+			Provider:  &discordgo.MessageEmbedProvider{},
+			Author: &discordgo.MessageEmbedAuthor{
+				Name:    t.DisplayName,
+				IconURL: t.LogoURL,
+			},
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "Game",
+					Value:  t.StreamData.GameName + " ",
+					Inline: true,
+				},
+				{
+					Name:   "Viewers",
+					Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
+					Inline: true,
+				},
+			},
+		}
+	} else {
+		embed = &discordgo.MessageEmbed{
+			URL:         "https://www.twitch.tv/" + t.DisplayName,
+			Type:        "",
+			Title:       t.StreamData.Title,
+			Description: "",
+			Timestamp:   "",
+			Color:       0x808080,
+			Footer:      &discordgo.MessageEmbedFooter{},
+			Image: &discordgo.MessageEmbedImage{
+				URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
+				ProxyURL: "",
+				Width:    1920,
+				Height:   1080},
+			Thumbnail: &discordgo.MessageEmbedThumbnail{},
+			Video:     &discordgo.MessageEmbedVideo{},
+			Provider:  &discordgo.MessageEmbedProvider{},
+			Author: &discordgo.MessageEmbedAuthor{
+				Name:    t.DisplayName,
+				IconURL: t.LogoURL,
+			},
+			Fields: []*discordgo.MessageEmbedField{
+				{
+					Name:   "Viewers",
+					Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
+					Inline: true,
+				},
+			},
+		}
+	}
+
+	return embed
+}
+
+func createDiscordOfflineEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
+	embed := &discordgo.MessageEmbed{
+		URL:   "",
+		Type:  "",
+		Title: "",
+		Description: "**Started at:** " + t.StartTime.Format("01/02/2006 15:04 MST") + "\n" +
+			"__**Ended at:** " + t.EndTime.Format("01/02/2006 15:04 MST") + "__\n" +
+			"**Total time streamed:** " + t.EndTime.Sub(t.StartTime).Round(time.Second).String(),
+		Timestamp: "",
+		Color:     0x808080,
+		Footer:    &discordgo.MessageEmbedFooter{},
+		Image:     &discordgo.MessageEmbedImage{},
 		Thumbnail: &discordgo.MessageEmbedThumbnail{},
 		Video:     &discordgo.MessageEmbedVideo{},
 		Provider:  &discordgo.MessageEmbedProvider{},
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    t.DisplayName,
+			Name:    t.DisplayName + " was online.",
 			IconURL: t.LogoURL,
 		},
 		Fields: []*discordgo.MessageEmbedField{},
 	}
 
-	return &embed
+	return embed
 }
 
 // Returns -1 if oracle isn't present or the index of the oracle if it is
@@ -287,9 +356,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 			for twitchChannel, tcInfo := range ts.twitchData {
 				for _, streams := range resp.Data.Streams {
 					if streams.UserLogin == twitchChannel && streams.Type == "live" {
-						tcInfo.StreamTitle = streams.Title
-						tcInfo.GameID = streams.GameID
-						tcInfo.ThumbnailURL = streams.ThumbnailURL
+						tcInfo.StreamData = &streams
 						tcInfo.StartTime = streams.StartedAt
 						tcInfo.EndTime = time.Time{}
 						continue OUTER
@@ -297,7 +364,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 
 				// stream not found, update times
-				tcInfo.StartTime = time.Time{}
+				tcInfo.StreamData = nil
 				if tcInfo.EndTime.IsZero() {
 					tcInfo.EndTime = time.Now()
 				}
@@ -327,22 +394,24 @@ func remove(s []*discordChannel, i int) []*discordChannel {
 
 func sendNotifications(ts *Session, ds *discordgo.Session) {
 	for _, tcInfo := range ts.twitchData {
-		if !tcInfo.StartTime.IsZero() && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
+		if tcInfo.StreamData != nil && time.Since(tcInfo.StartTime) > constants.TwitchStateChangeTime {
 			for guild, discordChannels := range tcInfo.DiscordChannels {
 				if connected, available := guildStatus[guild]; available && connected {
 					for _, discordChannel := range discordChannels {
 						if !discordChannel.LiveNotificationSent {
 							discordChannel.LiveNotificationSent = true
 							go sendLiveNotification(ds, discordChannel, tcInfo)
+						} else if discordChannel.LiveMessageID != "" && time.Since(discordChannel.UpdateTime) > constants.TwitchLiveMessageUpdateTime {
+							go updateLiveNotification(ds, discordChannel, tcInfo)
 						}
 					}
 				}
 			}
-		} else if !tcInfo.EndTime.IsZero() && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
+		} else if tcInfo.StreamData == nil && time.Since(tcInfo.EndTime) > constants.TwitchStateChangeTime {
 			for guild, discordChannels := range tcInfo.DiscordChannels {
 				if connected, available := guildStatus[guild]; available && connected {
 					for _, discordChannel := range discordChannels {
-						if discordChannel.LiveNotificationSent {
+						if discordChannel.LiveNotificationSent && discordChannel.LiveMessageID != "" {
 							discordChannel.LiveNotificationSent = false
 							go sendOfflineNotification(ds, discordChannel, tcInfo)
 						}
@@ -354,14 +423,29 @@ func sendNotifications(ts *Session, ds *discordgo.Session) {
 }
 
 func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
-	if _, err := ds.ChannelMessageSendEmbed(dc.ChannelID, createDiscordEmbedMessage(tci)); err != nil {
+	if m, err := ds.ChannelMessageSendEmbed(dc.ChannelID, createDiscordLiveEmbedMessage(tci)); err != nil {
 		utils.Log.WithError(err).Debug("Error sending message to discord.")
+	} else {
+		dc.LiveMessageID = m.ID
+		dc.UpdateTime = time.Now()
 	}
 }
 
 func sendOfflineNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
-	if _, err := ds.ChannelMessageSend(dc.ChannelID, tci.DisplayName+" is now offline!"); err != nil {
+	if m, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordOfflineEmbedMessage(tci)); err != nil {
 		utils.Log.WithError(err).Debug("Error sending message to discord.")
+	} else {
+		m.ID = ""
+		dc.UpdateTime = time.Time{}
+	}
+}
+
+func updateLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
+	if m, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordLiveEmbedMessage(tci)); err != nil {
+		utils.Log.WithError(err).Debug("Error sending message to discord.")
+	} else {
+		dc.LiveMessageID = m.ID
+		dc.UpdateTime = time.Now()
 	}
 }
 
