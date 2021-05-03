@@ -12,16 +12,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var serverCommandFields logrus.Fields
-
-func init() {
-	serverCommandFields = logrus.Fields{
-		"user":       m.Author.Username,
-		"command":    m.Content,
-		"channel_id": m.ChannelID,
-		"server_id":  m.GuildID}
-}
-
 func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -29,7 +19,11 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if strings.HasPrefix(strings.ToLower(m.Content), "housebot") {
 
-		utils.Log.WithFields(serverCommandFields).Info("Command recieved.")
+		utils.Log.WithFields(logrus.Fields{
+			"user":       m.Author.Username,
+			"command":    m.Content,
+			"channel_id": m.ChannelID,
+			"server_id":  m.GuildID}).Info("Command recieved.")
 
 		commandParams := strings.Split(m.Content, " ")[1:]
 
