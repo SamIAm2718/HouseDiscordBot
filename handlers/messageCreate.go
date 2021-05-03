@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
@@ -11,6 +12,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var serverCommandFields logrus.Fields
+
+func init() {
+	serverCommandFields = logrus.Fields{
+		"user":       m.Author.Username,
+		"command":    m.Content,
+		"channel_id": m.ChannelID,
+		"server_id":  m.GuildID}
+}
+
 func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
 		return
@@ -18,11 +29,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 
 	if strings.HasPrefix(strings.ToLower(m.Content), "housebot") {
 
-		utils.Log.WithFields(logrus.Fields{
-			"user":       m.Author.Username,
-			"command":    m.Content,
-			"channel_id": m.ChannelID,
-			"server_id":  m.GuildID}).Info("Command recieved.")
+		utils.Log.WithFields(serverCommandFields).Info("Command recieved.")
 
 		commandParams := strings.Split(m.Content, " ")[1:]
 
@@ -48,7 +55,36 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string) {
-	if len(c) == 2 {
+	if len(c) == 1 {
+		switch c[0] {
+		case "list":
+			t := twitch.GetSession(s)
+			mChannels := t.GetMonitoredChannels(m.ChannelID)
+			listFields := []*discordgo.MessageEmbedField{}
+
+			for i, channel := range mChannels {
+				listField := &discordgo.MessageEmbedField{
+					Name:   "Channel " + fmt.Sprint(i+1),
+					Value:  channel,
+					Inline: false,
+				}
+
+				listFields = append(listFields, listField)
+			}
+
+			listEmbed := &discordgo.MessageEmbed{
+				Title:  "This Discord channel is monitoring",
+				Fields: listFields,
+			}
+
+			_, err := s.ChannelMessageSendEmbed(m.ChannelID, listEmbed)
+			if err != nil {
+				utils.Log.WithError(err).Error("Failed to send message to Discord.")
+			}
+			return
+		default:
+		}
+	} else if len(c) == 2 {
 		switch c[0] {
 		case "add":
 			t := twitch.GetSession(s)

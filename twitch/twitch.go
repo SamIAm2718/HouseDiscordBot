@@ -61,6 +61,23 @@ func (t *Session) Close() error {
 	return utils.WriteGobToDisk(constants.DataPath, t.name, t.twitchData)
 }
 
+// Returns twitch channels being monitored by discord channel
+func (s *Session) GetMonitoredChannels(channelID string) []string {
+	channels := []string{}
+
+	for tc, tcInfo := range s.twitchData {
+		for _, discordChannels := range tcInfo.DiscordChannels {
+			for _, discordChannel := range discordChannels {
+				if discordChannel.ChannelID == channelID {
+					channels = append(channels, s.twitchData[tc].DisplayName)
+				}
+			}
+		}
+	}
+
+	return channels
+}
+
 func GetSession(s *discordgo.Session) *Session {
 	return activeSessions[s.State.SessionID]
 }
