@@ -22,10 +22,17 @@ type discordChannel struct {
 	LiveNotificationSent bool      // Whether or not a channel was notified of being live
 }
 
+type gameInfo struct {
+	GameName  string    // Name of game
+	StartTime time.Time // Time user switched to game
+	EndTime   time.Time // Time user switched off game
+}
+
 type twitchChannelInfo struct {
 	DisplayName     string                       // Twitch display name
 	LogoURL         string                       // URL of Twitch logo
-	StreamData      *helix.Stream                // Stream response sent by twitch
+	StreamData      *helix.Stream                // Stream response sent by
+	GameList        []*gameInfo                  // List of games played by streamer
 	StartTime       time.Time                    // Start time of stream
 	EndTime         time.Time                    // End time of stream
 	DiscordChannels map[string][]*discordChannel // Map of Discord guild IDs to discordChannel
@@ -219,85 +226,80 @@ func (t *Session) UnregisterChannel(twitchID string, discordGuildID string, disc
 }
 
 func createDiscordLiveEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
-	var embed *discordgo.MessageEmbed
+	var fields []*discordgo.MessageEmbedField
 	if t.StreamData.GameName != "" {
-		embed = &discordgo.MessageEmbed{
-			URL:         "https://www.twitch.tv/" + t.DisplayName,
-			Type:        "",
-			Title:       t.StreamData.Title,
-			Description: "",
-			Timestamp:   "",
-			Color:       0x808080,
-			Footer:      &discordgo.MessageEmbedFooter{},
-			Image: &discordgo.MessageEmbedImage{
-				URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
-				ProxyURL: "",
-				Width:    1920,
-				Height:   1080},
-			Thumbnail: &discordgo.MessageEmbedThumbnail{},
-			Video:     &discordgo.MessageEmbedVideo{},
-			Provider:  &discordgo.MessageEmbedProvider{},
-			Author: &discordgo.MessageEmbedAuthor{
-				Name:    t.DisplayName,
-				IconURL: t.LogoURL,
+		fields = []*discordgo.MessageEmbedField{
+			{
+				Name:   "Playing",
+				Value:  t.StreamData.GameName + " ",
+				Inline: true,
 			},
-			Fields: []*discordgo.MessageEmbedField{
-				{
-					Name:   "Game",
-					Value:  t.StreamData.GameName + " ",
-					Inline: true,
-				},
-				{
-					Name:   "Viewers",
-					Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
-					Inline: true,
-				},
+			{
+				Name:   "Viewers",
+				Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
+				Inline: true,
 			},
 		}
 	} else {
-		embed = &discordgo.MessageEmbed{
-			URL:         "https://www.twitch.tv/" + t.DisplayName,
-			Type:        "",
-			Title:       t.StreamData.Title,
-			Description: "",
-			Timestamp:   "",
-			Color:       0x808080,
-			Footer:      &discordgo.MessageEmbedFooter{},
-			Image: &discordgo.MessageEmbedImage{
-				URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
-				ProxyURL: "",
-				Width:    1920,
-				Height:   1080},
-			Thumbnail: &discordgo.MessageEmbedThumbnail{},
-			Video:     &discordgo.MessageEmbedVideo{},
-			Provider:  &discordgo.MessageEmbedProvider{},
-			Author: &discordgo.MessageEmbedAuthor{
-				Name:    t.DisplayName,
-				IconURL: t.LogoURL,
-			},
-			Fields: []*discordgo.MessageEmbedField{
-				{
-					Name:   "Viewers",
-					Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
-					Inline: true,
-				},
+		fields = []*discordgo.MessageEmbedField{
+			{
+				Name:   "Viewers",
+				Value:  fmt.Sprint(t.StreamData.ViewerCount) + " ",
+				Inline: true,
 			},
 		}
+	}
+
+	embed := &discordgo.MessageEmbed{
+		URL:         "https://www.twitch.tv/" + t.DisplayName,
+		Type:        "",
+		Title:       t.StreamData.Title,
+		Description: "",
+		Timestamp:   "",
+		Color:       0x00ff00,
+		Footer: &discordgo.MessageEmbedFooter{
+			Text:         "Streaming for " + time.Since(t.StartTime).Round(time.Second).String(),
+			IconURL:      "",
+			ProxyIconURL: ""},
+		Image: &discordgo.MessageEmbedImage{
+			URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
+			ProxyURL: "",
+			Width:    1920,
+			Height:   1080},
+		Thumbnail: &discordgo.MessageEmbedThumbnail{},
+		Video:     &discordgo.MessageEmbedVideo{},
+		Provider:  &discordgo.MessageEmbedProvider{},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    t.DisplayName,
+			IconURL: t.LogoURL,
+		},
+		Fields: fields,
 	}
 
 	return embed
 }
 
 func createDiscordOfflineEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed {
+	games := ""
+
+	for i, game := range t.GameList {
+		if game.GameName != "" {
+			games += fmt.Sprint(i+1) + ". " + game.GameName + " for " + game.EndTime.Sub(game.StartTime).Round(time.Second).String() + "\n"
+		} else {
+			games += fmt.Sprint(i+1) + ". Nothing for " + game.EndTime.Sub(game.StartTime).Round(time.Second).String() + "\n"
+		}
+	}
+
 	embed := &discordgo.MessageEmbed{
 		URL:   "",
 		Type:  "",
 		Title: "",
 		Description: "**Started at:** " + t.StartTime.Format("01/02/2006 15:04 MST") + "\n" +
 			"__**Ended at:** " + t.EndTime.Format("01/02/2006 15:04 MST") + "__\n" +
-			"**Total time streamed:** " + t.EndTime.Sub(t.StartTime).Round(time.Second).String(),
+			"**Total time streamed:** " + t.EndTime.Sub(t.StartTime).Round(time.Second).String() + "\n\n" +
+			"**Games Played**\n" + games,
 		Timestamp: "",
-		Color:     0x808080,
+		Color:     0xff0000,
 		Footer:    &discordgo.MessageEmbedFooter{},
 		Image:     &discordgo.MessageEmbedImage{},
 		Thumbnail: &discordgo.MessageEmbedThumbnail{},
@@ -359,6 +361,25 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 						tcInfo.StreamData = &streams
 						tcInfo.StartTime = streams.StartedAt
 						tcInfo.EndTime = time.Time{}
+
+						if len(tcInfo.GameList) == 0 {
+							tcInfo.GameList = []*gameInfo{
+								{
+									GameName:  streams.GameName,
+									StartTime: streams.StartedAt,
+									EndTime:   time.Time{},
+								},
+							}
+						} else if tcInfo.GameList[len(tcInfo.GameList)-1].GameName != streams.GameName {
+							tcInfo.GameList[len(tcInfo.GameList)-1].EndTime = time.Now()
+
+							tcInfo.GameList = append(tcInfo.GameList, &gameInfo{
+								GameName:  streams.GameName,
+								StartTime: time.Now(),
+								EndTime:   time.Time{},
+							})
+						}
+
 						continue OUTER
 					}
 				}
@@ -424,7 +445,7 @@ func sendNotifications(ts *Session, ds *discordgo.Session) {
 
 func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
 	if m, err := ds.ChannelMessageSendEmbed(dc.ChannelID, createDiscordLiveEmbedMessage(tci)); err != nil {
-		utils.Log.WithError(err).Debug("Error sending message to discord.")
+		utils.Log.WithError(err).Error("Error sending Discord message.")
 	} else {
 		dc.LiveMessageID = m.ID
 		dc.UpdateTime = time.Now()
@@ -432,17 +453,21 @@ func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitch
 }
 
 func sendOfflineNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
-	if m, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordOfflineEmbedMessage(tci)); err != nil {
-		utils.Log.WithError(err).Debug("Error sending message to discord.")
-	} else {
-		m.ID = ""
-		dc.UpdateTime = time.Time{}
+	tci.GameList[len(tci.GameList)-1].EndTime = time.Now()
+
+	if _, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordOfflineEmbedMessage(tci)); err != nil {
+		utils.Log.WithError(err).Error("Error updating Discord message.")
 	}
+
+	dc.LiveMessageID = ""
+	dc.UpdateTime = time.Time{}
+	tci.GameList = nil
 }
 
 func updateLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
 	if m, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordLiveEmbedMessage(tci)); err != nil {
-		utils.Log.WithError(err).Debug("Error sending message to discord.")
+		dc.LiveNotificationSent = false
+		utils.Log.WithError(err).Error("Error updating Discord message.")
 	} else {
 		dc.LiveMessageID = m.ID
 		dc.UpdateTime = time.Now()
