@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strings"
+	"time"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
 	"github.com/SamIAm2718/HouseDiscordBot/utils"
@@ -39,4 +40,18 @@ func getModRoleID(ds *discordgo.Session, guildID string) string {
 	}
 
 	return ""
+}
+
+func deleteBotMessageWithDelay(s *discordgo.Session, m *discordgo.Message, t time.Duration) {
+	time.Sleep(t)
+	if err := s.ChannelMessageDelete(m.ChannelID, m.ID); err != nil {
+		utils.Log.WithError(err).Error("Failed to delete Discord message.")
+	}
+}
+
+func deleteUserMessageWithDelay(s *discordgo.Session, m *discordgo.MessageCreate, t time.Duration) {
+	time.Sleep(t)
+	if err := s.ChannelMessageDelete(m.ChannelID, m.ID); err != nil {
+		utils.Log.WithError(err).Error("Failed to delete Discord message.")
+	}
 }
