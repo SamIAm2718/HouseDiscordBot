@@ -371,11 +371,11 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 								},
 							}
 						} else if tcInfo.GameList[len(tcInfo.GameList)-1].GameName != streams.GameName {
-							tcInfo.GameList[len(tcInfo.GameList)-1].EndTime = time.Now()
+							tcInfo.GameList[len(tcInfo.GameList)-1].EndTime = time.Now().UTC()
 
 							tcInfo.GameList = append(tcInfo.GameList, &gameInfo{
 								GameName:  streams.GameName,
-								StartTime: time.Now(),
+								StartTime: time.Now().UTC(),
 								EndTime:   time.Time{},
 							})
 						}
@@ -387,7 +387,7 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				// stream not found, update times
 				tcInfo.StreamData = nil
 				if tcInfo.EndTime.IsZero() {
-					tcInfo.EndTime = time.Now()
+					tcInfo.EndTime = time.Now().UTC()
 				}
 			}
 
@@ -453,7 +453,7 @@ func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitch
 }
 
 func sendOfflineNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
-	tci.GameList[len(tci.GameList)-1].EndTime = time.Now()
+	tci.GameList[len(tci.GameList)-1].EndTime = time.Now().UTC()
 
 	if _, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordOfflineEmbedMessage(tci)); err != nil {
 		utils.Log.WithError(err).Error("Error updating Discord message.")
@@ -470,7 +470,7 @@ func updateLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twit
 		utils.Log.WithError(err).Error("Error updating Discord message.")
 	} else {
 		dc.LiveMessageID = m.ID
-		dc.UpdateTime = time.Now()
+		dc.UpdateTime = time.Now().UTC()
 	}
 }
 
