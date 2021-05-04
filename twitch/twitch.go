@@ -251,27 +251,22 @@ func createDiscordLiveEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed
 	}
 
 	embed := &discordgo.MessageEmbed{
-		URL:         "https://www.twitch.tv/" + t.DisplayName,
-		Type:        "",
-		Title:       t.StreamData.Title,
-		Description: "",
-		Timestamp:   "",
-		Color:       0x00ff00,
+		URL:   "https://www.twitch.tv/" + t.DisplayName,
+		Title: t.StreamData.Title,
+		Color: 0x00ff00,
 		Footer: &discordgo.MessageEmbedFooter{
-			Text:         "Streaming for " + time.Since(t.StartTime).Round(time.Second).String(),
-			IconURL:      "",
-			ProxyIconURL: ""},
+			Text: "Streaming for " + formatDuration(time.Since(t.StartTime).Round(time.Second)),
+		},
 		Image: &discordgo.MessageEmbedImage{
-			URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL+"?"+fmt.Sprint(time.Now().Round(time.Minute*10).Unix()), "{width}", "1920", -1), "{height}", "1080", -1),
-			ProxyURL: "",
-			Width:    1920,
-			Height:   1080},
-		Thumbnail: &discordgo.MessageEmbedThumbnail{},
-		Video:     &discordgo.MessageEmbedVideo{},
-		Provider:  &discordgo.MessageEmbedProvider{},
+			URL: strings.Replace(strings.Replace(t.StreamData.ThumbnailURL+"?"+
+				fmt.Sprint(time.Now().Round(constants.TwitchThumbnailUpdateTime).Unix()),
+				"{width}", "1920", -1), "{height}", "1080", -1),
+		},
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL: t.LogoURL,
+		},
 		Author: &discordgo.MessageEmbedAuthor{
-			Name:    t.DisplayName,
-			IconURL: t.LogoURL,
+			Name: t.DisplayName + " is live!",
 		},
 		Fields: fields,
 	}
@@ -284,35 +279,37 @@ func createDiscordOfflineEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEm
 
 	for i, game := range t.GameList {
 		if game.GameName != "" {
-			games += fmt.Sprint(i+1) + ". " + game.GameName + " for " + game.EndTime.Sub(game.StartTime).Round(time.Second).String() + "\n"
+			games += fmt.Sprint(i+1) + ". " + game.GameName + " for " + formatDuration(game.EndTime.Sub(game.StartTime).Round(time.Second)) + "\n"
 		} else {
-			games += fmt.Sprint(i+1) + ". Nothing for " + game.EndTime.Sub(game.StartTime).Round(time.Second).String() + "\n"
+			games += fmt.Sprint(i+1) + ". Nothing for " + formatDuration(game.EndTime.Sub(game.StartTime).Round(time.Second)) + "\n"
 		}
 	}
 
 	embed := &discordgo.MessageEmbed{
-		URL:   "",
-		Type:  "",
-		Title: "",
 		Description: "**Started at:** " + t.StartTime.Format("01/02/2006 15:04 MST") + "\n" +
 			"__**Ended at:** " + t.EndTime.Format("01/02/2006 15:04 MST") + "__\n" +
-			"**Total time streamed:** " + t.EndTime.Sub(t.StartTime).Round(time.Second).String() + "\n\n" +
+			"**Total time streamed:** " + formatDuration(t.EndTime.Sub(t.StartTime).Round(time.Second)) + "\n\n" +
 			"**Games Played**\n" + games,
-		Timestamp: "",
-		Color:     0xff0000,
-		Footer:    &discordgo.MessageEmbedFooter{},
-		Image:     &discordgo.MessageEmbedImage{},
-		Thumbnail: &discordgo.MessageEmbedThumbnail{},
-		Video:     &discordgo.MessageEmbedVideo{},
-		Provider:  &discordgo.MessageEmbedProvider{},
-		Author: &discordgo.MessageEmbedAuthor{
-			Name:    t.DisplayName + " was online.",
-			IconURL: t.LogoURL,
+		Color: 0xff0000,
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL: t.LogoURL,
 		},
-		Fields: []*discordgo.MessageEmbedField{},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name: t.DisplayName + " was online.",
+		},
 	}
 
 	return embed
+}
+
+func formatDuration(d time.Duration) string {
+	d = d.Round(time.Second)
+	h := d / time.Hour
+	d -= h * time.Hour
+	m := d / time.Minute
+	d -= m * time.Minute
+	s := d / time.Second
+	return fmt.Sprintf("%d:%02d:%02d", h, m, s)
 }
 
 // Returns -1 if oracle isn't present or the index of the oracle if it is
@@ -353,41 +350,13 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 				}
 			}
 
-			// populate twitch info start/end time
-		OUTER:
+			// Populates twitch info. If stream not found then set end time.
 			for twitchChannel, tcInfo := range ts.twitchData {
-				for _, streams := range resp.Data.Streams {
-					if streams.UserLogin == twitchChannel && streams.Type == "live" {
-						tcInfo.StreamData = &streams
-						tcInfo.StartTime = streams.StartedAt
-						tcInfo.EndTime = time.Time{}
-
-						if len(tcInfo.GameList) == 0 {
-							tcInfo.GameList = []*gameInfo{
-								{
-									GameName:  streams.GameName,
-									StartTime: streams.StartedAt,
-									EndTime:   time.Time{},
-								},
-							}
-						} else if tcInfo.GameList[len(tcInfo.GameList)-1].GameName != streams.GameName {
-							tcInfo.GameList[len(tcInfo.GameList)-1].EndTime = time.Now()
-
-							tcInfo.GameList = append(tcInfo.GameList, &gameInfo{
-								GameName:  streams.GameName,
-								StartTime: time.Now(),
-								EndTime:   time.Time{},
-							})
-						}
-
-						continue OUTER
+				if !populateTwitchInfo(twitchChannel, tcInfo, resp) {
+					tcInfo.StreamData = nil
+					if tcInfo.EndTime.IsZero() {
+						tcInfo.EndTime = time.Now().UTC()
 					}
-				}
-
-				// stream not found, update times
-				tcInfo.StreamData = nil
-				if tcInfo.EndTime.IsZero() {
-					tcInfo.EndTime = time.Now()
 				}
 			}
 
@@ -398,6 +367,39 @@ func monitorChannels(ts *Session, ds *discordgo.Session) {
 	}
 
 	delete(activeSessions, ds.State.SessionID)
+}
+
+func populateTwitchInfo(twitchChannel string, tcInfo *twitchChannelInfo, resp *helix.StreamsResponse) bool {
+	for _, streams := range resp.Data.Streams {
+		if streams.UserLogin == twitchChannel && streams.Type == "live" {
+			tcInfo.StreamData = &streams
+			tcInfo.StartTime = streams.StartedAt
+			tcInfo.EndTime = time.Time{}
+
+			if len(tcInfo.GameList) == 0 {
+				tcInfo.GameList = []*gameInfo{
+					{
+						GameName:  streams.GameName,
+						StartTime: streams.StartedAt,
+						EndTime:   time.Time{},
+					},
+				}
+			} else if tcInfo.GameList[len(tcInfo.GameList)-1].GameName != streams.GameName &&
+				time.Since(tcInfo.GameList[len(tcInfo.GameList)-1].StartTime) > constants.TwitchGameUpdateTime {
+				tcInfo.GameList[len(tcInfo.GameList)-1].EndTime = time.Now().UTC()
+
+				tcInfo.GameList = append(tcInfo.GameList, &gameInfo{
+					GameName:  streams.GameName,
+					StartTime: time.Now().UTC(),
+					EndTime:   time.Time{},
+				})
+			}
+
+			return true
+		}
+	}
+
+	return false
 }
 
 func readGobFromDisk(path string, name string, o *map[string]*twitchChannelInfo) error {
@@ -453,7 +455,7 @@ func sendLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twitch
 }
 
 func sendOfflineNotification(ds *discordgo.Session, dc *discordChannel, tci *twitchChannelInfo) {
-	tci.GameList[len(tci.GameList)-1].EndTime = time.Now()
+	tci.GameList[len(tci.GameList)-1].EndTime = tci.EndTime
 
 	if _, err := ds.ChannelMessageEditEmbed(dc.ChannelID, dc.LiveMessageID, createDiscordOfflineEmbedMessage(tci)); err != nil {
 		utils.Log.WithError(err).Error("Error updating Discord message.")
@@ -470,7 +472,7 @@ func updateLiveNotification(ds *discordgo.Session, dc *discordChannel, tci *twit
 		utils.Log.WithError(err).Error("Error updating Discord message.")
 	} else {
 		dc.LiveMessageID = m.ID
-		dc.UpdateTime = time.Now()
+		dc.UpdateTime = time.Now().UTC()
 	}
 }
 

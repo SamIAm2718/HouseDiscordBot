@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/SamIAm2718/HouseDiscordBot/constants"
 	"github.com/SamIAm2718/HouseDiscordBot/twitch"
@@ -30,6 +31,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		if len(commandParams) > 0 {
 			switch commandParams[0] {
 			case "channel":
+				go deleteUserMessageWithDelay(s, m, time.Second)
 				if isUserMod(s, m.GuildID, m.Member) {
 					commandChannel(s, m, commandParams[1:])
 					return
@@ -93,19 +95,25 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"error":          err}).Info("Failed to register channel.")
 
 				if errors.Is(err, constants.ErrTwitchUserDoesNotExist) {
-					_, err := s.ChannelMessageSend(m.ChannelID, "The Twitch channel "+twitchChannel+" does not exist.")
+					m, err := s.ChannelMessageSend(m.ChannelID, "The Twitch channel "+twitchChannel+" does not exist.")
 					if err != nil {
 						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					} else {
+						go deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 					}
 				} else if errors.Is(err, constants.ErrTwitchUserRegistered) {
-					_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
+					m, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is already added to this Discord channel.")
 					if err != nil {
 						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					} else {
+						go deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 					}
 				} else {
-					_, err := s.ChannelMessageSend(m.ChannelID, "Error registering channel. Connection to twitch may be down.")
+					m, err := s.ChannelMessageSend(m.ChannelID, "Error registering channel. Connection to twitch may be down.")
 					if err != nil {
 						utils.Log.WithError(err).Error("Failed to send message to Discord.")
+					} else {
+						go deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 					}
 				}
 			} else {
@@ -115,9 +123,11 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"channel_id":     m.ChannelID,
 					"server_id":      m.GuildID}).Info("Succeeded in registering channel.")
 
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully added to this Discord channel.")
+				m, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully added to this Discord channel.")
 				if err != nil {
 					utils.Log.WithError(err).Error("Failed to send message to Discord.")
+				} else {
+					go deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 				}
 			}
 			return
@@ -132,9 +142,11 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"channel_id":     m.ChannelID,
 					"server_id":      m.GuildID}).Info("Succeeded in unregistering channel.")
 
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully removed from this Discord channel.")
+				m, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel successfully removed from this Discord channel.")
 				if err != nil {
 					utils.Log.WithError(err).Error("Failed to send message to Discord.")
+				} else {
+					deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 				}
 			} else {
 				utils.Log.WithFields(logrus.Fields{
@@ -143,9 +155,11 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 					"channel_id":     m.ChannelID,
 					"server_id":      m.GuildID}).Info("Failed to unregister channel.")
 
-				_, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is not added to this Discord channel.")
+				m, err := s.ChannelMessageSend(m.ChannelID, twitchChannel+"'s Twitch channel is not added to this Discord channel.")
 				if err != nil {
 					utils.Log.WithError(err).Error("Failed to send message to Discord.")
+				} else {
+					go deleteBotMessageWithDelay(s, m, constants.DiscordMessageDeleteDelay)
 				}
 
 			}
@@ -154,8 +168,10 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 		}
 	}
 
-	_, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is housebot channel [add/remove] <Twitch Channel>")
+	mes, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is:\n"+"housebot channel list\n"+"housebot channel [add/remove] <Twitch Channel>")
 	if err != nil {
 		utils.Log.WithError(err).Error("Failed to send message to Discord.")
+	} else {
+		go deleteBotMessageWithDelay(s, mes, constants.DiscordMessageDeleteDelay)
 	}
 }
