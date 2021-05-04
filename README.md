@@ -27,7 +27,11 @@ To run the project as a kubernetes pod
     
 2. kubectl apply -f k3sHouseBot.yaml
 ```
-Uses the repository https://github.com/bwmarrin/discordgo 
+Uses the repositories 
+* https://github.com/bwmarrin/discordgo
+* https://github.com/nicklaw5/helix
+* https://github.com/sirupsen/logrus
+* https://github.com/snowzach/rotatefilehook
 
 ## Using the Bot
 
