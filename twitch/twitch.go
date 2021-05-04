@@ -262,7 +262,7 @@ func createDiscordLiveEmbedMessage(t *twitchChannelInfo) *discordgo.MessageEmbed
 			IconURL:      "",
 			ProxyIconURL: ""},
 		Image: &discordgo.MessageEmbedImage{
-			URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL, "{width}", "1920", -1), "{height}", "1080", -1),
+			URL:      strings.Replace(strings.Replace(t.StreamData.ThumbnailURL+"?"+fmt.Sprint(time.Now().Round(time.Minute*10).Unix()), "{width}", "1920", -1), "{height}", "1080", -1),
 			ProxyURL: "",
 			Width:    1920,
 			Height:   1080},
