@@ -6,6 +6,10 @@ spec:
   containers:
   - image: samiam2718/house-discord-bot
     name: housebot
+    volumeMounts:
+    - mountPath: /go/src/housebot/data
+      name: media-hdd
+      subPath: configs/housebot
     env:
       - name: BOT_TOKEN
         valueFrom: # Reference to the secret | housebot.bottoken
@@ -22,3 +26,7 @@ spec:
           secretKeyRef:
             name: "housebot"
             key: "twitchclientsecret"
+  volumes:
+  - name: media-hdd
+    persistentVolumeClaim:
+      claimName: media-hdd
