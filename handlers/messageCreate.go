@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SamIAm2718/HouseDiscordBot/constants"
-	"github.com/SamIAm2718/HouseDiscordBot/twitch"
-	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/constants"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/twitch"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/utils"
 	"github.com/sirupsen/logrus"
 )
 
@@ -18,7 +18,7 @@ func MessageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	if strings.HasPrefix(strings.ToLower(m.Content), "housebot") {
+	if strings.HasPrefix(strings.ToLower(m.Content), constants.CommandPrefix) {
 
 		utils.Log.WithFields(logrus.Fields{
 			"user":       m.Author.Username,
@@ -168,7 +168,7 @@ func commandChannel(s *discordgo.Session, m *discordgo.MessageCreate, c []string
 		}
 	}
 
-	mes, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is:\n"+"housebot channel list\n"+"housebot channel [add/remove] <Twitch Channel>")
+	mes, err := s.ChannelMessageSend(m.ChannelID, "Proper usage is:\n"+constants.CommandPrefix+" channel list\n"+constants.CommandPrefix+" channel [add/remove] <Twitch Channel>")
 	if err != nil {
 		utils.Log.WithError(err).Error("Failed to send message to Discord.")
 	} else {

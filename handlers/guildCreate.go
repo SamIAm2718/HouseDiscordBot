@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"github.com/SamIAm2718/HouseDiscordBot/twitch"
-	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/twitch"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/utils"
 )
 
 func GuildCreate(s *discordgo.Session, event *discordgo.GuildCreate) {

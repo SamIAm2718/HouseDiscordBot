@@ -6,10 +6,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/SamIAm2718/HouseDiscordBot/handlers"
-	"github.com/SamIAm2718/HouseDiscordBot/twitch"
-	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/handlers"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/twitch"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/utils"
 )
 
 // Variables used for command line parameters

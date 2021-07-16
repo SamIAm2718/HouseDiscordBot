@@ -1,10 +1,10 @@
 FROM golang:1.16
 
-WORKDIR /go/src/housebot
+WORKDIR /go/src/discordtwitchbot
 COPY . .
 
-RUN go install -v ./housediscordbot.go
+RUN go install -v ./discordtwitchbot.go
 
 RUN rm -rfv ./*
 
-CMD ["housediscordbot"]
+CMD ["discordtwitchbot"]

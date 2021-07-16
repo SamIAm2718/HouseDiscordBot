@@ -1,4 +1,4 @@
-module github.com/SamIAm2718/HouseDiscordBot
+module github.com/samuel-mokhtar/DiscordTwitchBot
 
 go 1.16
 

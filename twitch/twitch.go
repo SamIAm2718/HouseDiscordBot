@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SamIAm2718/HouseDiscordBot/constants"
-	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
 	"github.com/nicklaw5/helix"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/constants"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/utils"
 )
 
 type discordChannel struct {

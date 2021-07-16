@@ -8,5 +8,6 @@ const (
 
 // Control strings
 const (
-	ModRole = "housebotmod"
+	ModRole       = "twitchbotmod"
+	CommandPrefix = "!twitch"
 )

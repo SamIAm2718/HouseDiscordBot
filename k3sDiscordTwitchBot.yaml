@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: discordtwitchbot
+spec:
+  containers:
+  - image: samuel-mokhtar/discord-twitch-bot
+    name: discordtwitchbot
+    volumeMounts:
+    - mountPath: /go/src/discordtwitchbot/data
+      name: media-hdd
+      subPath: configs/discordtwitchbot
+    env:
+      - name: BOT_TOKEN
+        valueFrom: # Reference to the secret | discordtwitchbot.bottoken
+          secretKeyRef:
+            name: "discordtwitchbot"
+            key: "bottoken"
+      - name: TWITCH_CLIENT_ID
+        valueFrom: # Reference to the secret | discordtwitchbot.bottoken
+          secretKeyRef:
+            name: "discordtwitchbot"
+            key: "twitchclientid"
+      - name: TWITCH_CLIENT_SECRET
+        valueFrom: # Reference to the secret | discordtwitchbot.bottoken
+          secretKeyRef:
+            name: "discordtwitchbot"
+            key: "twitchclientsecret"
+  volumes:
+  - name: media-hdd
+    persistentVolumeClaim:
+      claimName: media-hdd

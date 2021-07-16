@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SamIAm2718/HouseDiscordBot/constants"
-	"github.com/SamIAm2718/HouseDiscordBot/utils"
 	"github.com/bwmarrin/discordgo"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/constants"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/utils"
 	"github.com/sirupsen/logrus"
 )
 

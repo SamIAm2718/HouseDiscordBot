@@ -4,7 +4,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/SamIAm2718/HouseDiscordBot/constants"
+	"github.com/samuel-mokhtar/DiscordTwitchBot/constants"
 	"github.com/sirupsen/logrus"
 	"github.com/snowzach/rotatefilehook"
 )
