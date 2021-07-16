@@ -20,7 +20,7 @@ docker run -e BOT_TOKEN=<Bot Token> \
 To run the project as a kubernetes pod 
 ```
 1. Create secret with 
-    k create secret generic housebot \
+    k create secret generic discordtwitchbot \
         --from-literal='bottoken=<bot token>' \
         --from-literal='twitchclientid=<twitch client id>' \
         --from-literal='twitchclientsecret=<twitch client secret>' \
