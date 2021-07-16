@@ -1,4 +1,4 @@
-# HouseDiscordBot
+# Discord Twitch Bot
 ## Running the Bot
 To run the bot using go either run the command
 ```
