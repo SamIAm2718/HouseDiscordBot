@@ -2,12 +2,12 @@
 ## Running the Bot
 To run the bot using go either run the command
 ```
-go run HouseDiscordBot.go
+go run discordtwitchbot.go
 ```
 after setting the enviornment variable `BOT_TOKEN` to your Discord bot's token or run either of the commands
 ```
-go run HouseDiscordBot.go -t <Bot token>
-go run HouseDiscordBot.go -o <Path to file containing token>
+go run discordtwitchbot.go -t <Bot token>
+go run discordtwitchbot.go -o <Path to file containing token>
 ```
 if you don't want to set environment vairables (Note to use the Twitch functionality you will need to pass your Twitch app's client id through the environment variable TWITCH_CLIENT_ID and the Twitch app's secret through the enviornment variable TWITCH_CLIENT_SECRET). To run the project on Docker use the command
 
@@ -15,7 +15,7 @@ if you don't want to set environment vairables (Note to use the Twitch functiona
 docker run -e BOT_TOKEN=<Bot Token> \
 -e TWITCH_CLIENT_ID=<Twitch Client ID> \
 -e TWITCH_CLIENT_SECRET=<Twitch Client Secret> \
---name <Container Name> samiam2718/house-discord-bot
+--name <Container Name> samuel-mokhtar/discord-twitch-bot
 ```
 To run the project as a kubernetes pod 
 ```
@@ -25,7 +25,7 @@ To run the project as a kubernetes pod
         --from-literal='twitchclientid=<twitch client id>' \
         --from-literal='twitchclientsecret=<twitch client secret>' \
     
-2. kubectl apply -f k3sHouseBot.yaml
+2. kubectl apply -f k3sDiscordTwitchBot.yaml
 ```
 Uses the repositories 
 * https://github.com/bwmarrin/discordgo
@@ -37,10 +37,14 @@ Uses the repositories
 
 To use the bot you can use the command
 ```
-housebot channel add <Twitch channel>
+!twitch channel add <Twitch channel>
 ```
 to register a Twitch channel to a Discord channel or
 ```
-housebot channel remove <Twitch channel>
+!twitch channel remove <Twitch channel>
 ```
-To unregister a Twitch Channel from a Discord channel 
+To unregister a Twitch Channel from a Discord channel. You can use the command
+```
+!twitch channel list
+```
+to list the Twitch channels a Discord channel is monitoring.
