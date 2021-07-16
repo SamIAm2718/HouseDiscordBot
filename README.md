@@ -15,7 +15,7 @@ if you don't want to set environment vairables (Note to use the Twitch functiona
 docker run -e BOT_TOKEN=<Bot Token> \
 -e TWITCH_CLIENT_ID=<Twitch Client ID> \
 -e TWITCH_CLIENT_SECRET=<Twitch Client Secret> \
---name <Container Name> samuel-mokhtar/discord-twitch-bot
+--name <Container Name> samuelmokhtar/discord-twitch-bot
 ```
 To run the project as a kubernetes pod 
 ```
