@@ -23,7 +23,7 @@ To run the project as a kubernetes pod
     k create secret generic discordtwitchbot \
         --from-literal='bottoken=<bot token>' \
         --from-literal='twitchclientid=<twitch client id>' \
-        --from-literal='twitchclientsecret=<twitch client secret>' \
+        --from-literal='twitchclientsecret=<twitch client secret>'
     
 2. kubectl apply -f k3sDiscordTwitchBot.yaml
 ```
